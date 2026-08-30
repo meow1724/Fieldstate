@@ -11,7 +11,6 @@ import { FarmEconomicsScreen } from './components/screens/FarmEconomicsScreen';
 import { CropHealthDetail } from './components/screens/CropHealthDetail';
 import { WaterManagementDetail } from './components/screens/WaterManagementDetail';
 import { WeatherForecastDetail } from './components/screens/WeatherForecastDetail';
-import { PitchDeckAndScienceLedger } from './components/screens/PitchDeckAndScienceLedger';
 import { FarmSetup } from './components/screens/FarmSetup';
 
 import { FieldSurveyModal } from './components/modals/FieldSurveyModal';
@@ -350,7 +349,6 @@ export const App: React.FC = () => {
                 { id: 'crop-health', label: 'Crop Health (NDVI)', icon: 'satellite_alt' },
                 { id: 'water', label: 'Water Management', icon: 'water_drop' },
                 { id: 'weather', label: 'Weather Forecast', icon: 'cloud_sync' },
-                { id: 'pitch', label: 'Pitch & Science Ledger', icon: 'auto_stories' },
                 { id: 'setup', label: 'Farm Configuration', icon: 'settings' },
               ].map((item) => (
                 <button
@@ -414,7 +412,7 @@ export const App: React.FC = () => {
           <div className="flex items-center gap-2.5">
             <span className={`w-2.5 h-2.5 rounded-full ${isSyncingApi ? 'bg-amber-500 animate-ping' : 'bg-[#1e3a29]'}`} />
             <div className="flex items-center gap-1.5">
-              <span className="font-bold text-[#0f172a]">Live API Status:</span>
+              <span className="font-bold text-[#0f172a]">Live Telemetry Feed:</span>
               <span className="text-[#475569]">
                 {isSyncingApi
                   ? 'Connecting to Open-Meteo global radar and computing FAO-56 Penman-Monteith...'
@@ -427,20 +425,12 @@ export const App: React.FC = () => {
             <button
               onClick={() => syncWithLiveApi(farm, isCloudGapSimulated)}
               disabled={isSyncingApi}
-              className="bg-[#f8fafc] hover:bg-[#f1f5f9] text-[#1e3a29] px-3 py-1.5 rounded-xl font-bold flex items-center gap-1.5 cursor-pointer text-[12px] border border-[#cbd5e1] transition-colors"
+              className="bg-[#f8fafc] hover:bg-[#f1f5f9] text-[#1e3a29] px-3.5 py-1.5 rounded-xl font-bold flex items-center gap-1.5 cursor-pointer text-[12px] border border-[#cbd5e1] transition-colors"
             >
               <span className={`material-symbols-outlined text-[16px] ${isSyncingApi ? 'animate-spin' : ''}`}>
                 refresh
               </span>
-              <span>{isSyncingApi ? 'Syncing...' : 'Refresh Live API'}</span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab('pitch')}
-              className="bg-[#101b13] hover:bg-[#1e3a29] text-[#e6a833] px-3 py-1.5 rounded-xl font-bold flex items-center gap-1.5 cursor-pointer text-[12px] transition-colors"
-            >
-              <span className="material-symbols-outlined text-[16px]">gavel</span>
-              <span>Judge Presentation</span>
+              <span>{isSyncingApi ? 'Syncing...' : 'Sync Live Radar & Satellite'}</span>
             </button>
           </div>
         </div>
@@ -503,13 +493,6 @@ export const App: React.FC = () => {
             farm={farm}
             agronomic={agronomic}
             weather7Day={weather7Day}
-            onNavigateToTab={handleTabChange}
-          />
-        )}
-
-        {activeTab === 'pitch' && (
-          <PitchDeckAndScienceLedger
-            onSelectJudgeScenario={handleSelectJudgeScenario}
             onNavigateToTab={handleTabChange}
           />
         )}

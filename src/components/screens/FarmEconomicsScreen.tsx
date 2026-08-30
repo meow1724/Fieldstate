@@ -38,7 +38,7 @@ export const FarmEconomicsScreen: React.FC<FarmEconomicsScreenProps> = ({
         <div>
           <div className="flex items-center gap-2 mb-2">
             <span className="bg-[#1e3a29] text-[#e6a833] text-[11px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-md border border-[#2d523b]">
-              Earth Forward ROI Engine
+              Precision Resource Economics
             </span>
             <span className="text-[12px] text-[#64748b]">
               Direct financial savings & GHG reduction from precision timing

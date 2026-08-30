@@ -34,8 +34,6 @@ export const TopBar: React.FC<TopBarProps> = ({
         return 'FAO-56 Evapotranspiration & Water Balance';
       case 'weather':
         return 'Climate & Radar Forecast';
-      case 'pitch':
-        return 'Pitch Presentation & Science Ledger';
       case 'setup':
         return 'Farm & Pump Configuration';
       default:

@@ -22,11 +22,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const navItems = [
     { id: 'today', label: "Today's Decision", icon: 'task_alt', badge: '1 Action' },
-    { id: 'economics', label: 'ROI & Carbon Savings', icon: 'savings', badge: 'New' },
+    { id: 'economics', label: 'ROI & Carbon Savings', icon: 'savings', badge: 'Active' },
     { id: 'crop-health', label: 'Crop Health (NDVI)', icon: 'satellite_alt' },
     { id: 'water', label: 'Water Management', icon: 'water_drop' },
     { id: 'weather', label: 'Weather Forecast', icon: 'cloud_sync' },
-    { id: 'pitch', label: 'Pitch & Science Ledger', icon: 'auto_stories' },
     { id: 'setup', label: 'Farm Configuration', icon: 'settings' },
   ];
 
@@ -42,18 +41,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <h1 className="text-[22px] font-extrabold text-white leading-tight tracking-tight flex items-center gap-1.5">
               <span>Fieldstate</span>
             </h1>
-            <p className="text-[11px] text-[#86a894] tracking-wider uppercase font-semibold">One Decision for Irrigation</p>
+            <p className="text-[11px] text-[#86a894] tracking-wider uppercase font-semibold">Precision Water Intelligence</p>
           </div>
         </div>
 
-        {/* Hackathon Track Tag */}
-        <div className="mt-3 py-1 px-2.5 rounded-lg bg-[#192f22] border border-[#2d523b] flex items-center justify-between text-[11px]">
-          <span className="text-[#a5d0b9] font-medium">Earth Forward 2026</span>
-          <span className="bg-[#e6a833] text-[#141e17] px-1.5 py-0.2 rounded font-bold text-[10px]">Hackathon</span>
-        </div>
-
         {/* Quick Farm Selector */}
-        <div className="mt-3 pt-3 border-t border-[#233b2c]">
+        <div className="mt-4 pt-3 border-t border-[#233b2c]">
           <label className="text-[11px] font-bold text-[#86a894] uppercase tracking-wider block mb-1.5 flex items-center justify-between">
             <span>Active Parcel</span>
             <span className="text-[10px] bg-[#234e35] text-[#c1ecd4] px-1.5 py-0.5 rounded font-mono font-semibold">Live GPS</span>
@@ -124,33 +117,33 @@ export const Sidebar: React.FC<SidebarProps> = ({
         })}
       </div>
 
-      {/* Quick Judge Pitch Scenarios Drawer */}
+      {/* Quick Field Parcel Condition Testing Drawer */}
       <div className="pt-3 pb-2 border-t border-[#233b2c] flex flex-col gap-1.5">
         <span className="text-[10px] font-bold text-[#86a894] uppercase tracking-wider px-1 flex items-center gap-1">
-          <span className="material-symbols-outlined text-[13px] text-[#e6a833]">gavel</span>
-          <span>Judge Demo Scenarios</span>
+          <span className="material-symbols-outlined text-[13px] text-[#e6a833]">explore</span>
+          <span>Sample Field Parcels</span>
         </span>
         <div className="grid grid-cols-3 gap-1">
           <button
             onClick={() => onSelectJudgeScenario('north-plot-rice')}
-            title="Scenario A: 31mm Rain -> WAIT decision"
+            title="Rice Paddy (Sub-tropical) - 31mm Rain Forecast -> WAIT"
             className="text-[10px] bg-[#192a1e] hover:bg-[#234e35] text-[#93c5fd] hover:text-white border border-[#284936] py-1.5 px-1 rounded-lg text-center font-semibold transition-colors cursor-pointer"
           >
-            1. Rain (WAIT)
+            Rice (Rain)
           </button>
           <button
             onClick={() => onSelectJudgeScenario('sector-7-wheat')}
-            title="Scenario B: Dry Deficit -> IRRIGATE decision"
+            title="Wheat (Semi-arid) - Depleted Profile -> IRRIGATE"
             className="text-[10px] bg-[#192a1e] hover:bg-[#234e35] text-[#fca5a5] hover:text-white border border-[#284936] py-1.5 px-1 rounded-lg text-center font-semibold transition-colors cursor-pointer"
           >
-            2. Deficit (IRRIGATE)
+            Wheat (Dry)
           </button>
           <button
             onClick={() => onSelectJudgeScenario('east-basin-corn')}
-            title="Scenario C: NDVI Anomaly -> INSPECT decision"
+            title="Corn Field (Temperate) - Canopy Vigor Drop -> INSPECT"
             className="text-[10px] bg-[#192a1e] hover:bg-[#234e35] text-[#fde047] hover:text-white border border-[#284936] py-1.5 px-1 rounded-lg text-center font-semibold transition-colors cursor-pointer"
           >
-            3. Vigor (INSPECT)
+            Corn (Scout)
           </button>
         </div>
       </div>
@@ -163,7 +156,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
           <div className="flex flex-col min-w-0">
             <span className="text-[12px] font-semibold text-white truncate">Field Manager</span>
-            <span className="text-[10px] text-[#86a894] truncate">Agronomic Pilot Mode</span>
+            <span className="text-[10px] text-[#86a894] truncate">Enterprise Edition</span>
           </div>
         </div>
         <button

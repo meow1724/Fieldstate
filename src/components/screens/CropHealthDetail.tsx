@@ -109,9 +109,9 @@ export const CropHealthDetail: React.FC<CropHealthDetailProps> = ({
         <div className="mb-6 p-4 bg-amber-50 text-amber-950 rounded-2xl border border-amber-300 flex items-start gap-3 shadow-xs animate-in fade-in">
           <span className="material-symbols-outlined text-[24px] text-amber-700 mt-0.5">cloud</span>
           <div className="text-[13px] leading-relaxed">
-            <strong className="text-amber-900">Scientific Honesty Protocol Active (Slide 11):</strong>
+            <strong className="text-amber-900">Atmospheric Cloud Interference Protocol Active:</strong>
             <p className="mt-0.5">
-              Recent Sentinel-2 pass was obscured by heavy cloud cover (&gt;65%). Rather than hallucinating or guessing canopy vigor, Fieldstate downgraded overall decision confidence to <strong>Medium</strong> and uses the last confirmed baseline.
+              Recent Sentinel-2 pass was obscured by optical cloud cover (&gt;65%). Rather than interpolating uncertain vegetative vigor, Fieldstate automatically adjusts decision confidence to <strong>Medium</strong> and anchors to the last validated optical pass.
             </p>
           </div>
         </div>
@@ -212,9 +212,9 @@ export const CropHealthDetail: React.FC<CropHealthDetailProps> = ({
             </div>
           </div>
 
-          {/* Scientific Disclaimer Pill (Slide 7 & 15) */}
+          {/* Scientific Disclaimer Pill */}
           <div className="mt-4 pt-3 border-t border-[#e2e8f0] flex flex-wrap items-center justify-between gap-2 text-[11px] text-[#64748b]">
-            <span><strong>Scientific Honesty:</strong> NDVI measures canopy greenness vigor — not soil fertility or disease.</span>
+            <span><strong>Remote Sensing Grounding:</strong> NDVI measures canopy chlorophyll and leaf area index — physical scouting confirms causes.</span>
             <span className="font-mono text-[#0f172a] font-bold">Variance: {currentReading.variance > 0 ? `+${currentReading.variance.toFixed(2)}` : currentReading.variance.toFixed(2)}</span>
           </div>
         </div>
@@ -229,11 +229,11 @@ export const CropHealthDetail: React.FC<CropHealthDetailProps> = ({
                   <span className="material-symbols-outlined text-red-600 text-[26px]">warning</span>
                   <div>
                     <h3 className="text-[17px] font-bold text-red-950">Ground Inspection Recommended</h3>
-                    <p className="text-[11px] text-red-700 font-bold uppercase tracking-wider">NDVI Anomaly Detected (Slide 8)</p>
+                    <p className="text-[11px] text-red-700 font-bold uppercase tracking-wider">Canopy Reflectance Variance Flagged</p>
                   </div>
                 </div>
                 <p className="text-[13px] text-red-900 leading-relaxed mt-2">
-                  Canopy NDVI is tracking <strong className="text-red-700 font-bold">{currentReading.variance.toFixed(2)}</strong> below the expected stage baseline. This flags for physical scouting (water, pests, or drainage), not automated diagnosis.
+                  Canopy NDVI is tracking <strong className="text-red-700 font-bold">{currentReading.variance.toFixed(2)}</strong> below the expected stage baseline. This flags for physical scouting (water distribution, pests, or localized drainage).
                 </p>
               </div>
 
