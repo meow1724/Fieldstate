@@ -28,16 +28,18 @@ export const TodayDashboard: React.FC<TodayDashboardProps> = ({
   const [acknowledged, setAcknowledged] = useState(false);
   const [hoveredBarIndex, setHoveredBarIndex] = useState<number | null>(null);
 
+  // Dynamically calculate vegetative growth trajectory bars from crop age and NDVI
+  const currentObs = ndviReadings[0]?.observed || 0.78;
+  const age = agronomic.cropAgeDays || 45;
   const ndviBars = [
-    { value: 0.35, height: '35%', label: 'Day 10' },
-    { value: 0.46, height: '45%', label: 'Day 20' },
-    { value: 0.58, height: '58%', label: 'Day 30' },
-    { value: 0.69, height: '70%', label: 'Day 40' },
-    { value: 0.76, height: '78%', label: 'Day 45' },
+    { value: 0.22, height: '22%', label: 'Day 1' },
+    { value: Number((0.22 + (currentObs - 0.22) * 0.35).toFixed(2)), height: `${Math.round((0.22 + (currentObs - 0.22) * 0.35) * 100)}%`, label: `Day ${Math.max(5, Math.round(age * 0.25))}` },
+    { value: Number((0.22 + (currentObs - 0.22) * 0.65).toFixed(2)), height: `${Math.round((0.22 + (currentObs - 0.22) * 0.65) * 100)}%`, label: `Day ${Math.max(10, Math.round(age * 0.50))}` },
+    { value: Number((0.22 + (currentObs - 0.22) * 0.88).toFixed(2)), height: `${Math.round((0.22 + (currentObs - 0.22) * 0.88) * 100)}%`, label: `Day ${Math.max(15, Math.round(age * 0.75))}` },
     {
-      value: ndviReadings[0]?.observed || 0.80,
-      height: `${Math.round((ndviReadings[0]?.observed || 0.80) * 100)}%`,
-      label: 'Today',
+      value: currentObs,
+      height: `${Math.round(currentObs * 100)}%`,
+      label: `Today (D${age})`,
       isLatest: true,
     },
   ];
@@ -95,7 +97,7 @@ export const TodayDashboard: React.FC<TodayDashboardProps> = ({
         <div>
           <div className="flex items-center gap-2 mb-2">
             <span className="bg-[#1e3a29] text-[#e6a833] text-[11px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-md border border-[#2d523b]">
-              Earth Forward 2026 Engine
+              Precision Water Intelligence Engine
             </span>
             <span className="text-[12px] text-[#64748b] font-medium">
               Three signals in · One decision out

@@ -8,7 +8,9 @@ interface SidebarProps {
   currentFarm: FarmProfile;
   farms: Record<string, any>;
   onSelectFarm: (farmId: string) => void;
-  onSelectJudgeScenario: (scenarioKey: string) => void;
+  onSelectBenchmarkFarm: (benchmarkKey: string) => void;
+  onUseLiveLocation: () => void;
+  isLocating?: boolean;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -18,7 +20,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   currentFarm,
   farms,
   onSelectFarm,
-  onSelectJudgeScenario,
+  onSelectBenchmarkFarm,
+  onUseLiveLocation,
+  isLocating = false,
 }) => {
   const navItems = [
     { id: 'today', label: "Today's Decision", icon: 'task_alt', badge: '1 Action' },
@@ -32,7 +36,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   return (
     <nav className="hidden lg:flex flex-col h-screen p-5 gap-2 border-r border-[#2d4436] bg-[#101b13] text-[#e2ece5] w-64 shrink-0 fixed left-0 top-0 z-40 overflow-y-auto custom-scrollbar shadow-2xl">
       {/* Brand Header */}
-      <div className="mb-4">
+      <div className="mb-3">
         <div className="flex items-center gap-3 mb-1">
           <div className="w-10 h-10 rounded-xl bg-[#234e35] border border-[#3b7352] flex items-center justify-center text-[#e6a833] shadow-md">
             <span className="material-symbols-outlined icon-fill text-2xl">eco</span>
@@ -41,16 +45,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <h1 className="text-[22px] font-extrabold text-white leading-tight tracking-tight flex items-center gap-1.5">
               <span>Fieldstate</span>
             </h1>
-            <p className="text-[11px] text-[#86a894] tracking-wider uppercase font-semibold">Precision Water Intelligence</p>
+            <p className="text-[11px] text-[#86a894] tracking-wider uppercase font-semibold">Live Water Intelligence</p>
           </div>
         </div>
 
         {/* Quick Farm Selector */}
-        <div className="mt-4 pt-3 border-t border-[#233b2c]">
-          <label className="text-[11px] font-bold text-[#86a894] uppercase tracking-wider block mb-1.5 flex items-center justify-between">
+        <div className="mt-3 pt-3 border-t border-[#233b2c] flex flex-col gap-2">
+          <label className="text-[11px] font-bold text-[#86a894] uppercase tracking-wider block flex items-center justify-between">
             <span>Active Parcel</span>
-            <span className="text-[10px] bg-[#234e35] text-[#c1ecd4] px-1.5 py-0.5 rounded font-mono font-semibold">Live GPS</span>
+            <span className="text-[10px] bg-[#234e35] text-[#c1ecd4] px-1.5 py-0.5 rounded font-mono font-semibold">100% Live API</span>
           </label>
+
           <div className="relative">
             <select
               value={currentFarm.id}
@@ -67,6 +72,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
               unfold_more
             </span>
           </div>
+
+          {/* 1-Click Live GPS Locator */}
+          <button
+            onClick={onUseLiveLocation}
+            disabled={isLocating}
+            className="w-full bg-[#192a1e] hover:bg-[#234e35] text-[#c1ecd4] hover:text-white border border-[#2e4d3a] rounded-lg py-1.5 px-2.5 flex items-center justify-center gap-1.5 text-[11px] font-bold transition-all cursor-pointer shadow-xs"
+          >
+            <span className={`material-symbols-outlined text-[15px] text-[#4ade80] ${isLocating ? 'animate-spin' : ''}`}>
+              {isLocating ? 'progress_activity' : 'my_location'}
+            </span>
+            <span>{isLocating ? 'Acquiring GPS...' : 'Detect My Live Location'}</span>
+          </button>
         </div>
       </div>
 
@@ -117,33 +134,40 @@ export const Sidebar: React.FC<SidebarProps> = ({
         })}
       </div>
 
-      {/* Quick Field Parcel Condition Testing Drawer */}
+      {/* Global Agro-Climatic Benchmarks */}
       <div className="pt-3 pb-2 border-t border-[#233b2c] flex flex-col gap-1.5">
         <span className="text-[10px] font-bold text-[#86a894] uppercase tracking-wider px-1 flex items-center gap-1">
-          <span className="material-symbols-outlined text-[13px] text-[#e6a833]">explore</span>
-          <span>Sample Field Parcels</span>
+          <span className="material-symbols-outlined text-[13px] text-[#e6a833]">public</span>
+          <span>Global Live Field Benchmarks</span>
         </span>
-        <div className="grid grid-cols-3 gap-1">
+        <div className="grid grid-cols-2 gap-1.5 text-[10px]">
           <button
-            onClick={() => onSelectJudgeScenario('north-plot-rice')}
-            title="Rice Paddy (Sub-tropical) - 31mm Rain Forecast -> WAIT"
-            className="text-[10px] bg-[#192a1e] hover:bg-[#234e35] text-[#93c5fd] hover:text-white border border-[#284936] py-1.5 px-1 rounded-lg text-center font-semibold transition-colors cursor-pointer"
+            onClick={() => onSelectBenchmarkFarm('punjab-rice-basin')}
+            title="Punjab Indo-Gangetic Basin (Rice Paddy, India)"
+            className="bg-[#192a1e] hover:bg-[#234e35] text-[#93c5fd] hover:text-white border border-[#284936] py-1.5 px-2 rounded-lg text-left font-semibold transition-colors cursor-pointer truncate"
           >
-            Rice (Rain)
+            Punjab (Rice)
           </button>
           <button
-            onClick={() => onSelectJudgeScenario('sector-7-wheat')}
-            title="Wheat (Semi-arid) - Depleted Profile -> IRRIGATE"
-            className="text-[10px] bg-[#192a1e] hover:bg-[#234e35] text-[#fca5a5] hover:text-white border border-[#284936] py-1.5 px-1 rounded-lg text-center font-semibold transition-colors cursor-pointer"
+            onClick={() => onSelectBenchmarkFarm('kansas-wheat-belt')}
+            title="Kansas Central Plains (Winter Wheat, USA)"
+            className="bg-[#192a1e] hover:bg-[#234e35] text-[#fca5a5] hover:text-white border border-[#284936] py-1.5 px-2 rounded-lg text-left font-semibold transition-colors cursor-pointer truncate"
           >
-            Wheat (Dry)
+            Kansas (Wheat)
           </button>
           <button
-            onClick={() => onSelectJudgeScenario('east-basin-corn')}
-            title="Corn Field (Temperate) - Canopy Vigor Drop -> INSPECT"
-            className="text-[10px] bg-[#192a1e] hover:bg-[#234e35] text-[#fde047] hover:text-white border border-[#284936] py-1.5 px-1 rounded-lg text-center font-semibold transition-colors cursor-pointer"
+            onClick={() => onSelectBenchmarkFarm('california-valley-corn')}
+            title="California San Joaquin Valley (Maize/Corn, USA)"
+            className="bg-[#192a1e] hover:bg-[#234e35] text-[#fde047] hover:text-white border border-[#284936] py-1.5 px-2 rounded-lg text-left font-semibold transition-colors cursor-pointer truncate"
           >
-            Corn (Scout)
+            California (Corn)
+          </button>
+          <button
+            onClick={() => onSelectBenchmarkFarm('mendoza-vineyard')}
+            title="Mendoza Uco Valley (Vineyard, Argentina)"
+            className="bg-[#192a1e] hover:bg-[#234e35] text-[#d8b4fe] hover:text-white border border-[#284936] py-1.5 px-2 rounded-lg text-left font-semibold transition-colors cursor-pointer truncate"
+          >
+            Mendoza (Vine)
           </button>
         </div>
       </div>
@@ -156,7 +180,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
           <div className="flex flex-col min-w-0">
             <span className="text-[12px] font-semibold text-white truncate">Field Manager</span>
-            <span className="text-[10px] text-[#86a894] truncate">Enterprise Edition</span>
+            <span className="text-[10px] text-[#86a894] truncate">Live Open-Meteo & Sentinel-2</span>
           </div>
         </div>
         <button

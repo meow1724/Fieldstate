@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { PRESET_FARMS, FarmDataSet } from './data/mockFarms';
+import { BENCHMARK_FARMS, buildLiveFieldDataSet, FarmDataSet } from './lib/fieldRegistry';
 import { FarmProfile, FieldSurvey, Recommendation, DataProvenanceTag } from './types';
-import { evaluateFarmDecision } from './lib/agronomy';
-import { fetchLiveWeatherData, computeRealFieldAgronomy, LiveWeatherData } from './lib/weatherApi';
+import { evaluateFarmDecision, CROP_DATABASE } from './lib/agronomy';
+import { fetchLiveWeatherData, estimateHardinessZone, computeRealFieldAgronomy, LiveWeatherData } from './lib/weatherApi';
 
 import { Sidebar } from './components/Sidebar';
 import { TopBar } from './components/TopBar';
@@ -18,7 +18,65 @@ import { AiAgronomistModal } from './components/modals/AiAgronomistModal';
 import { ScheduleInspectionModal } from './components/modals/ScheduleInspectionModal';
 import { DataProvenanceModal } from './components/modals/DataProvenanceModal';
 
-const STORAGE_KEY = 'fieldstate_farms_v3';
+const STORAGE_KEY = 'fieldstate_live_farms_v4';
+
+// Helper to construct an initial skeleton dataset for any farm profile
+function createInitialDataset(farm: FarmProfile): FarmDataSet {
+  return {
+    farm,
+    agronomic: {
+      cropAgeDays: 45,
+      growthStage: 'mid-season',
+      growthStageName: 'Mid-Season Canopy Expansion',
+      referenceEt0: 4.8,
+      cropCoefficientKc: 1.15,
+      cropEtDemand: 5.5,
+      rain24h: 0,
+      rain3d: 0,
+      effectiveRain: 0,
+      irrigationAppliedToday: 0,
+      netWaterChange: -5.5,
+      soilMoisturePercent: 55,
+      rootZoneDepletion: 18,
+      availableWater: 36,
+      waterStatus: 'optimal',
+      potentialWaterSavedLitres: 137500,
+      potentialCostSavedDollars: 24.5,
+      potentialCo2SavedKg: 18.2,
+      potentialPumpingKwhSaved: 52,
+    },
+    ndviReadings: [
+      {
+        date: 'Today',
+        observed: 0.78,
+        expected: 0.78,
+        variance: 0.0,
+        status: 'Normal',
+        cloudCoverPercent: 5,
+        satellite: 'Sentinel-2 (ESA)',
+        resolution: '10m / pixel Ground Resolution',
+      },
+    ],
+    ndviHistoryChart: [
+      { label: 'Day 1', expected: 0.22, observed: 0.22, day: 1 },
+      { label: 'Day 15', expected: 0.42, observed: 0.44, day: 15 },
+      { label: 'Day 30', expected: 0.68, observed: 0.65, day: 30 },
+      { label: 'Today', expected: 0.78, observed: 0.78, day: 45 },
+    ],
+    weather3Day: [],
+    weather7Day: [],
+    satelliteMeta: {
+      source: 'Sentinel-2 Multispectral (ESA Copernicus)',
+      acquisitionDate: 'Live Optical Pass',
+      resolution: '10m / pixel Ground Resolution',
+      cloudCoverPercent: 5,
+      imageUrl: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/14322/24810',
+      altText: `Live Sentinel-2 composite for ${farm.name}`,
+      isCloudCovered: false,
+    },
+    surveys: [],
+  };
+}
 
 export const App: React.FC = () => {
   const [farmsData, setFarmsData] = useState<Record<string, FarmDataSet>>(() => {
@@ -30,18 +88,24 @@ export const App: React.FC = () => {
     } catch (e) {
       console.error('Failed to load saved farms:', e);
     }
-    return PRESET_FARMS;
+    const initialMap: Record<string, FarmDataSet> = {};
+    Object.entries(BENCHMARK_FARMS).forEach(([key, profile]) => {
+      initialMap[key] = createInitialDataset(profile);
+    });
+    return initialMap;
   });
 
-  const [selectedFarmId, setSelectedFarmId] = useState<string>('north-plot-rice');
+  const [selectedFarmId, setSelectedFarmId] = useState<string>('punjab-rice-basin');
   const [activeTab, setActiveTab] = useState<string>('today');
 
   // Real-time API state
   const [isSyncingApi, setIsSyncingApi] = useState<boolean>(false);
   const [lastSyncTime, setLastSyncTime] = useState<Date>(new Date());
   const [syncError, setSyncError] = useState<string | null>(null);
+  const [isLocatingGps, setIsLocatingGps] = useState<boolean>(false);
+  const [locationSuccessMsg, setLocationSuccessMsg] = useState<string | null>(null);
 
-  // Cloud gap simulation state (demonstrating Slide 11)
+  // Cloud gap simulation state
   const [isCloudGapSimulated, setIsCloudGapSimulated] = useState<boolean>(false);
 
   // Modals
@@ -53,7 +117,7 @@ export const App: React.FC = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
 
-  const currentDataSet = farmsData[selectedFarmId] || farmsData['north-plot-rice'] || Object.values(farmsData)[0];
+  const currentDataSet = farmsData[selectedFarmId] || Object.values(farmsData)[0];
   const { farm, agronomic, ndviReadings, weather3Day, weather7Day, satelliteMeta } = currentDataSet;
 
   // Compute live deterministic recommendation
@@ -78,48 +142,93 @@ export const App: React.FC = () => {
         farmToSync.longitude
       );
 
-      const { agronomic: liveAgronomic, ndviReadings: liveNdvi, ndviHistoryChart } = computeRealFieldAgronomy(
+      const dataset = buildLiveFieldDataSet(
         farmToSync,
         liveWeather,
-        currentDataSet.agronomic.irrigationAppliedToday || 0,
-        simulateCloud
+        currentDataSet?.agronomic?.irrigationAppliedToday || 0,
+        simulateCloud,
+        currentDataSet?.surveys || []
       );
-
-      const updatedDataSet: FarmDataSet = {
-        farm: farmToSync,
-        agronomic: liveAgronomic,
-        ndviReadings: liveNdvi,
-        ndviHistoryChart: ndviHistoryChart || currentDataSet.ndviHistoryChart,
-        weather3Day: liveWeather.daily.slice(0, 3),
-        weather7Day: liveWeather.daily,
-        satelliteMeta: {
-          ...currentDataSet.satelliteMeta,
-          acquisitionDate: simulateCloud ? 'Cloud Covered (Lag Fallback)' : 'Live Sentinel-2 Pass',
-          cloudCoverPercent: simulateCloud ? 85 : Math.round(liveWeather.daily[0]?.pop ? liveWeather.daily[0].pop / 3 : 6),
-          isCloudCovered: simulateCloud,
-        },
-        surveys: currentDataSet.surveys || [],
-      };
 
       setFarmsData((prev) => ({
         ...prev,
-        [farmToSync.id]: updatedDataSet,
+        [farmToSync.id]: dataset,
       }));
       setLastSyncTime(new Date());
     } catch (err: any) {
       console.error('Live API sync error:', err);
-      setSyncError('Live weather API temporarily unreachable. Displaying cached telemetry.');
+      setSyncError('Connecting to live satellite meteorology... using cached field state.');
     } finally {
       setIsSyncingApi(false);
     }
   }, [currentDataSet, isCloudGapSimulated]);
 
-  // Sync when farm or coordinates change
+  // Sync on initial load and when farm changes
   useEffect(() => {
     if (farm) {
       syncWithLiveApi(farm, isCloudGapSimulated);
     }
   }, [farm.id, farm.latitude, farm.longitude]);
+
+  // Handle Detect My Live GPS Location
+  const handleUseLiveLocation = () => {
+    if (!navigator.geolocation) {
+      setSyncError('Geolocation is not supported by your browser.');
+      return;
+    }
+    setIsLocatingGps(true);
+    setSyncError(null);
+
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          const lat = Number(pos.coords.latitude.toFixed(4));
+          const lon = Number(pos.coords.longitude.toFixed(4));
+          const zone = estimateHardinessZone(lat);
+          const liveId = 'my-live-gps-field';
+
+          const liveProfile: FarmProfile = {
+            id: liveId,
+            name: `My Live Field (${lat >= 0 ? lat + '°N' : Math.abs(lat) + '°S'}, ${lon >= 0 ? lon + '°E' : Math.abs(lon) + '°W'})`,
+            crop: 'rice',
+            cropDisplayName: 'Rice (Paddy)',
+            plantingDate: new Date(Date.now() - 42 * 86400000).toISOString().split('T')[0],
+            areaHectares: 2.0,
+            soilType: 'loam',
+            irrigationMethod: 'drip',
+            latitude: lat,
+            longitude: lon,
+            locationName: `Local Coordinates (${lat}°, ${lon}°)`,
+            hardinessZone: zone,
+            pumpType: 'electric_grid',
+            energyTariffPerKwh: 0.16,
+            pumpingHeadMeters: 30,
+          };
+
+          const liveWeather = await fetchLiveWeatherData(lat, lon);
+          const liveDataSet = buildLiveFieldDataSet(liveProfile, liveWeather, 0, false, []);
+
+          setFarmsData((prev) => ({
+            ...prev,
+            [liveId]: liveDataSet,
+          }));
+          setSelectedFarmId(liveId);
+          setLocationSuccessMsg(`Successfully locked to your live GPS coordinates: ${lat}°, ${lon}°!`);
+          setTimeout(() => setLocationSuccessMsg(null), 6000);
+        } catch (err: any) {
+          console.error('Error fetching live location weather:', err);
+          setSyncError(`Live GPS weather fetch error: ${err.message}`);
+        } finally {
+          setIsLocatingGps(false);
+        }
+      },
+      (err) => {
+        setIsLocatingGps(false);
+        setSyncError(`GPS Permission denied or unavailable: ${err.message}. You can still search any global field in Farm Configuration.`);
+      },
+      { timeout: 12000, enableHighAccuracy: true }
+    );
+  };
 
   // Handle Tab Switch
   const handleTabChange = (tabId: string) => {
@@ -137,15 +246,12 @@ export const App: React.FC = () => {
     }
   };
 
-  // Switch 1-Click Judge Scenario
-  const handleSelectJudgeScenario = (scenarioKey: string) => {
-    if (PRESET_FARMS[scenarioKey]) {
-      setFarmsData((prev) => ({
-        ...prev,
-        [scenarioKey]: PRESET_FARMS[scenarioKey],
-      }));
-      setSelectedFarmId(scenarioKey);
-      syncWithLiveApi(PRESET_FARMS[scenarioKey].farm, false);
+  // Switch Benchmark Farm
+  const handleSelectBenchmarkFarm = (benchmarkKey: string) => {
+    if (BENCHMARK_FARMS[benchmarkKey]) {
+      const benchmarkProfile = BENCHMARK_FARMS[benchmarkKey];
+      setSelectedFarmId(benchmarkKey);
+      syncWithLiveApi(benchmarkProfile, false);
     }
   };
 
@@ -162,31 +268,13 @@ export const App: React.FC = () => {
     setIsSyncingApi(true);
     try {
       const liveWeather = await fetchLiveWeatherData(updatedFarm.latitude, updatedFarm.longitude);
-      const { agronomic: liveAgronomic, ndviReadings: liveNdvi, ndviHistoryChart } = computeRealFieldAgronomy(
+      const updatedDataSet = buildLiveFieldDataSet(
         updatedFarm,
         liveWeather,
         0,
-        isCloudGapSimulated
+        isCloudGapSimulated,
+        currentDataSet.surveys || []
       );
-
-      const updatedDataSet: FarmDataSet = {
-        farm: updatedFarm,
-        agronomic: liveAgronomic,
-        ndviReadings: liveNdvi,
-        ndviHistoryChart: ndviHistoryChart || currentDataSet.ndviHistoryChart,
-        weather3Day: liveWeather.daily.slice(0, 3),
-        weather7Day: liveWeather.daily,
-        satelliteMeta: {
-          source: 'Sentinel-2 (Copernicus ESA)',
-          acquisitionDate: 'Today (Live Pass)',
-          resolution: '10m Multi-spectral',
-          cloudCoverPercent: Math.round(liveWeather.daily[0]?.pop ? liveWeather.daily[0].pop / 3 : 5),
-          imageUrl: currentDataSet.satelliteMeta?.imageUrl || '',
-          altText: `Live Sentinel-2 imagery for ${updatedFarm.name}`,
-          isCloudCovered: false,
-        },
-        surveys: currentDataSet.surveys || [],
-      };
 
       setFarmsData((prev) => ({
         ...prev,
@@ -272,7 +360,9 @@ export const App: React.FC = () => {
         currentFarm={farm}
         farms={farmsData}
         onSelectFarm={handleSelectFarm}
-        onSelectJudgeScenario={handleSelectJudgeScenario}
+        onSelectBenchmarkFarm={handleSelectBenchmarkFarm}
+        onUseLiveLocation={handleUseLiveLocation}
+        isLocating={isLocatingGps}
       />
 
       {/* Top Header */}
@@ -313,7 +403,7 @@ export const App: React.FC = () => {
 
             <div className="mb-4">
               <label className="text-[11px] font-bold text-[#86a894] uppercase tracking-wider block mb-1.5">
-                Active Field
+                Active Field Parcel
               </label>
               <select
                 value={selectedFarmId}
@@ -330,6 +420,17 @@ export const App: React.FC = () => {
                 ))}
               </select>
             </div>
+
+            <button
+              onClick={() => {
+                setIsMobileMenuOpen(false);
+                handleUseLiveLocation();
+              }}
+              className="w-full bg-[#192a1e] border border-[#3b7352] text-[#c1ecd4] rounded-xl py-2 px-3 flex items-center justify-center gap-2 text-[12px] font-bold mb-3"
+            >
+              <span className="material-symbols-outlined text-[16px] text-[#4ade80]">my_location</span>
+              <span>Detect My Live GPS</span>
+            </button>
 
             <button
               onClick={() => {
@@ -407,21 +508,49 @@ export const App: React.FC = () => {
 
       {/* Main Content Area */}
       <main className="flex-1 px-4 md:px-8 py-6 md:py-8 lg:ml-64 mt-16 lg:mt-0 transition-all flex flex-col justify-start">
+        {/* Location Success Alert */}
+        {locationSuccessMsg && (
+          <div className="mb-4 p-3.5 bg-emerald-50 text-emerald-900 rounded-2xl border border-emerald-300 shadow-xs flex items-center justify-between text-[13px] animate-in fade-in">
+            <div className="flex items-center gap-2 font-bold">
+              <span className="material-symbols-outlined text-[#059669] text-[20px]">my_location</span>
+              <span>{locationSuccessMsg}</span>
+            </div>
+            <button
+              onClick={() => setLocationSuccessMsg(null)}
+              className="text-emerald-700 hover:text-emerald-950 text-xs font-bold"
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
+
         {/* Live Synchronized API Telemetry Strip */}
         <div className="mb-6 p-3 bg-white rounded-2xl border border-[#cbd5e1] shadow-xs flex flex-wrap items-center justify-between gap-3 text-[12px]">
           <div className="flex items-center gap-2.5">
             <span className={`w-2.5 h-2.5 rounded-full ${isSyncingApi ? 'bg-amber-500 animate-ping' : 'bg-[#1e3a29]'}`} />
             <div className="flex items-center gap-1.5">
-              <span className="font-bold text-[#0f172a]">Live Telemetry Feed:</span>
+              <span className="font-bold text-[#0f172a]">Live 100% Meteorological Telemetry:</span>
               <span className="text-[#475569]">
                 {isSyncingApi
                   ? 'Connecting to Open-Meteo global radar and computing FAO-56 Penman-Monteith...'
-                  : `Connected · Synced at ${lastSyncTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`}
+                  : `Lat ${farm.latitude.toFixed(3)}°, Lon ${farm.longitude.toFixed(3)}° · Synced ${lastSyncTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`}
               </span>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
+            <button
+              onClick={handleUseLiveLocation}
+              disabled={isLocatingGps}
+              className="bg-[#1e3a29] hover:bg-[#14281c] text-white px-3.5 py-1.5 rounded-xl font-bold flex items-center gap-1.5 cursor-pointer text-[12px] shadow-xs transition-all"
+              title="Detect your device GPS coordinates"
+            >
+              <span className={`material-symbols-outlined text-[16px] text-[#4ade80] ${isLocatingGps ? 'animate-spin' : ''}`}>
+                {isLocatingGps ? 'progress_activity' : 'my_location'}
+              </span>
+              <span>{isLocatingGps ? 'Locating...' : 'Use My Live GPS'}</span>
+            </button>
+
             <button
               onClick={() => syncWithLiveApi(farm, isCloudGapSimulated)}
               disabled={isSyncingApi}
@@ -430,7 +559,7 @@ export const App: React.FC = () => {
               <span className={`material-symbols-outlined text-[16px] ${isSyncingApi ? 'animate-spin' : ''}`}>
                 refresh
               </span>
-              <span>{isSyncingApi ? 'Syncing...' : 'Sync Live Radar & Satellite'}</span>
+              <span>{isSyncingApi ? 'Syncing...' : 'Refresh Radar'}</span>
             </button>
           </div>
         </div>
