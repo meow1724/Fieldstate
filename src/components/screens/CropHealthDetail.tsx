@@ -9,6 +9,8 @@ interface CropHealthDetailProps {
   satelliteMeta: SatelliteImageMeta;
   onScheduleInspection: () => void;
   onNewSurvey: () => void;
+  onToggleCloudGap: (enabled: boolean) => void;
+  isCloudGapSimulated: boolean;
 }
 
 export const CropHealthDetail: React.FC<CropHealthDetailProps> = ({
@@ -18,15 +20,16 @@ export const CropHealthDetail: React.FC<CropHealthDetailProps> = ({
   satelliteMeta,
   onScheduleInspection,
   onNewSurvey,
+  onToggleCloudGap,
+  isCloudGapSimulated,
 }) => {
   const [timeRange, setTimeRange] = useState('30');
   const [anomalyDismissed, setAnomalyDismissed] = useState(false);
-  const [hoveredPoint, setHoveredPoint] = useState<{ obs: number; exp: number; label: string } | null>(null);
 
   const currentReading = ndviReadings[0] || {
     date: 'Today',
-    observed: 0.82,
-    expected: 0.80,
+    observed: 0.80,
+    expected: 0.78,
     variance: 0.02,
     status: 'Normal' as const,
   };
@@ -36,8 +39,8 @@ export const CropHealthDetail: React.FC<CropHealthDetailProps> = ({
   const handleExportData = () => {
     const csvContent =
       'data:text/csv;charset=utf-8,' +
-      ['Date,Observed NDVI,Expected NDVI,Variance,Status'].concat(
-        ndviReadings.map((r) => `${r.date},${r.observed},${r.expected},${r.variance},${r.status}`)
+      ['Date,Observed NDVI,Expected NDVI,Variance,Status,Cloud Cover %'].concat(
+        ndviReadings.map((r) => `${r.date},${r.observed},${r.expected},${r.variance},${r.status},${r.cloudCoverPercent || 0}`)
       ).join('\n');
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
@@ -49,302 +52,281 @@ export const CropHealthDetail: React.FC<CropHealthDetailProps> = ({
   };
 
   return (
-    <div className="flex-1 max-w-[1400px] mx-auto w-full">
-      {/* Page Header with Real Address & Synchronized Crop Badge */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
+    <div className="flex-1 max-w-[1380px] mx-auto w-full">
+      {/* Page Header (Matching Slide 7 & 8 of Fieldstate Presentation) */}
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-6">
         <div>
           <div className="flex flex-wrap items-center gap-2 mb-2">
-            <span className="bg-[#c1ecd4] text-[#002114] text-[12px] font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1">
-              <span className="material-symbols-outlined text-[14px]">location_on</span>
-              <span>{farm.locationName}</span>
+            <span className="bg-[#1e3a29] text-[#e6a833] text-[11px] font-bold px-2.5 py-0.5 rounded-md flex items-center gap-1">
+              <span className="material-symbols-outlined text-[14px]">satellite_alt</span>
+              <span>Sentinel-2 Multispectral</span>
             </span>
-            <span className="bg-[#edeeed] text-[#191c1c] text-[12px] font-medium px-2.5 py-0.5 rounded-full">
-              {farm.cropDisplayName} • Day {agronomic.cropAgeDays}
+            <span className="bg-white border border-[#cbd5e1] text-[#0f172a] text-[12px] font-semibold px-2.5 py-0.5 rounded-md">
+              {farm.cropDisplayName} · Day {agronomic.cropAgeDays}
             </span>
-            <span className="text-[12px] text-[#717973] font-mono">
-              {farm.latitude.toFixed(4)}° N, {farm.longitude.toFixed(4)}° W
+            <span className="text-[12px] text-[#64748b] font-mono">
+              {farm.latitude.toFixed(4)}° N, {farm.longitude.toFixed(4)}° E
             </span>
           </div>
-
-          <h2 className="text-[36px] md:text-[48px] font-bold text-[#191c1c] tracking-tight leading-tight">
-            {farm.name} Health & NDVI
+          <h2 className="text-[32px] md:text-[42px] font-extrabold text-[#0f172a] tracking-tight leading-tight">
+            Crop Vigor (NDVI) & Canopy Analysis
           </h2>
-          <p className="text-[18px] text-[#414844] mt-1">
-            Normalized Difference Vegetation Index (NDVI) & Multi-spectral Sentinel-2 Signals
+          <p className="text-[15px] text-[#475569] mt-0.5">
+            Comparing observed Sentinel-2 NIR/Red reflectance against modeled vegetative growth trajectories.
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
-          <div className="relative">
-            <select
-              value={timeRange}
-              onChange={(e) => setTimeRange(e.target.value)}
-              className="bg-white border border-[#c1c8c2] text-[#191c1c] text-[14px] font-medium py-2 pl-4 pr-9 rounded-lg hover:bg-[#f3f4f3] transition-colors appearance-none cursor-pointer focus:outline-none focus:ring-1 focus:ring-[#012d1d]"
-            >
-              <option value="30">Last 30 Days</option>
-              <option value="60">Last 60 Days</option>
-              <option value="90">Full Season (90 Days)</option>
-            </select>
-            <span className="material-symbols-outlined absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-[#414844] text-[18px]">
-              arrow_drop_down
+        {/* Action Controls & Cloud Gap Toggle */}
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Cloud Gap Simulator Toggle (Demonstrating Slide 11 Scientific Honesty) */}
+          <button
+            onClick={() => onToggleCloudGap(!isCloudGapSimulated)}
+            className={`flex items-center gap-2 px-3 py-2 rounded-xl text-[12px] font-bold border transition-all cursor-pointer ${
+              isCloudGapSimulated
+                ? 'bg-amber-100 text-amber-900 border-amber-300 shadow-xs'
+                : 'bg-white text-[#475569] border-[#cbd5e1] hover:bg-[#f8fafc]'
+            }`}
+            title="Simulate cloudy optical scene gap and test confidence downgrading"
+          >
+            <span className="material-symbols-outlined text-[17px] text-amber-600">
+              {isCloudGapSimulated ? 'cloud' : 'wb_sunny'}
             </span>
-          </div>
+            <span>{isCloudGapSimulated ? 'Cloud Gap Mode: ACTIVE' : 'Simulate Cloud Gap'}</span>
+          </button>
+
           <button
             onClick={handleExportData}
             title="Download CSV"
-            className="bg-white border border-[#c1c8c2] text-[#191c1c] p-2.5 rounded-lg hover:bg-[#f3f4f3] transition-colors flex items-center justify-center cursor-pointer shadow-xs"
+            className="bg-white border border-[#cbd5e1] text-[#0f172a] p-2 rounded-xl hover:bg-[#f8fafc] transition-colors flex items-center justify-center cursor-pointer shadow-xs"
           >
-            <span className="material-symbols-outlined text-[20px]">download</span>
+            <span className="material-symbols-outlined text-[19px]">download</span>
           </button>
         </div>
       </div>
 
+      {/* Cloud Gap Banner when Active */}
+      {isCloudGapSimulated && (
+        <div className="mb-6 p-4 bg-amber-50 text-amber-950 rounded-2xl border border-amber-300 flex items-start gap-3 shadow-xs animate-in fade-in">
+          <span className="material-symbols-outlined text-[24px] text-amber-700 mt-0.5">cloud</span>
+          <div className="text-[13px] leading-relaxed">
+            <strong className="text-amber-900">Scientific Honesty Protocol Active (Slide 11):</strong>
+            <p className="mt-0.5">
+              Recent Sentinel-2 pass was obscured by heavy cloud cover (&gt;65%). Rather than hallucinating or guessing canopy vigor, Fieldstate downgraded overall decision confidence to <strong>Medium</strong> and uses the last confirmed baseline.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Bento Grid */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
         {/* Main Chart Card (Spans 7 cols on large screens) */}
-        <div className="xl:col-span-7 bg-white rounded-2xl shadow-[0_4px_12px_rgba(0,0,0,0.05)] border border-[#c1c8c2]/30 p-6 md:p-8 flex flex-col min-h-[480px]">
-          <div className="flex flex-wrap justify-between items-start gap-4 mb-6">
-            <div>
-              <h3 className="text-[20px] font-bold text-[#191c1c]">NDVI Trajectory Curve</h3>
-              <p className="text-[13px] text-[#414844] mt-1">Observed values vs. Expected growth model for {farm.cropDisplayName}</p>
+        <div className="xl:col-span-7 bg-white rounded-3xl shadow-sm border border-[#cbd5e1] p-6 md:p-8 flex flex-col justify-between min-h-[460px]">
+          <div>
+            <div className="flex flex-wrap justify-between items-start gap-4 mb-4">
+              <div>
+                <h3 className="text-[19px] font-extrabold text-[#0f172a]">NDVI Trajectory Curve</h3>
+                <p className="text-[13px] text-[#64748b] mt-0.5">
+                  Observed $(NIR - Red) / (NIR + Red)$ vs. Expected Growth Stage Baseline
+                </p>
+              </div>
+
+              {/* Legend */}
+              <div className="flex items-center gap-4 text-[12px]">
+                <div className="flex items-center gap-2">
+                  <div className="w-3.5 h-3.5 rounded-full bg-[#1e3a29]"></div>
+                  <span className="text-[#475569] font-semibold">Expected ({currentReading.expected.toFixed(2)})</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-3.5 h-3.5 rounded-full bg-[#e6a833]"></div>
+                  <span className="text-[#475569] font-semibold">Observed ({currentReading.observed.toFixed(2)})</span>
+                </div>
+              </div>
             </div>
-            {/* Legend */}
-            <div className="flex items-center gap-4 text-[13px]">
-              <div className="flex items-center gap-2">
-                <div className="w-3.5 h-3.5 rounded-full bg-[#1b4332] border border-[#012d1d]"></div>
-                <span className="text-[#414844] font-medium">Expected ({currentReading.expected.toFixed(2)})</span>
+
+            {/* SVG Trajectory Chart */}
+            <div className="relative w-full h-[280px] border-b border-l border-[#cbd5e1] pb-8 pl-10 pt-4 mt-4">
+              {/* Y-Axis Labels */}
+              <div className="absolute left-0 top-4 bottom-8 w-10 flex flex-col justify-between items-end pr-2 text-[11px] font-mono font-medium text-[#64748b]">
+                <span>1.0</span>
+                <span>0.8</span>
+                <span>0.6</span>
+                <span>0.4</span>
+                <span>0.2</span>
+                <span>0.0</span>
               </div>
-              <div className="flex items-center gap-2">
-                <div className="w-3.5 h-3.5 rounded-full bg-[#a03f2e]"></div>
-                <span className="text-[#414844] font-medium">Observed ({currentReading.observed.toFixed(2)})</span>
+
+              {/* X-Axis Labels */}
+              <div className="absolute bottom-0 left-10 right-0 h-7 flex justify-between items-center text-[11px] font-medium text-[#64748b] px-2">
+                <span>Day 1</span>
+                <span>Day {Math.round(agronomic.cropAgeDays * 0.3)}</span>
+                <span>Day {Math.round(agronomic.cropAgeDays * 0.6)}</span>
+                <span>Day {Math.round(agronomic.cropAgeDays * 0.85)}</span>
+                <span className="font-bold text-[#0f172a]">Today (Day {agronomic.cropAgeDays})</span>
               </div>
+
+              {/* Grid Lines */}
+              <div className="absolute inset-0 left-10 bottom-8 top-4 flex flex-col justify-between pointer-events-none opacity-15">
+                <div className="w-full h-px bg-[#475569]"></div>
+                <div className="w-full h-px bg-[#475569]"></div>
+                <div className="w-full h-px bg-[#475569]"></div>
+                <div className="w-full h-px bg-[#475569]"></div>
+                <div className="w-full h-px bg-[#475569]"></div>
+              </div>
+
+              {/* SVG Curves */}
+              <svg
+                className="absolute inset-0 left-10 bottom-8 top-4 w-[calc(100%-2.5rem)] h-[calc(100%-3rem)] overflow-visible"
+                preserveAspectRatio="none"
+                viewBox="0 0 100 100"
+              >
+                {/* Expected Line (Dashed Green) */}
+                <path
+                  d="M 5,80 Q 25,65 50,40 T 75,25 T 95,20"
+                  fill="none"
+                  stroke="#1e3a29"
+                  strokeWidth="2.5"
+                  strokeDasharray="4 4"
+                  className="opacity-70"
+                />
+
+                {/* Observed Line */}
+                <path
+                  d={
+                    currentReading.variance < -0.05
+                      ? 'M 5,80 Q 28,68 50,48 T 75,32 Q 85,36 95,45'
+                      : 'M 5,80 Q 25,64 50,38 T 75,22 T 95,18'
+                  }
+                  fill="none"
+                  stroke={currentReading.variance < -0.05 ? '#dc2626' : '#e6a833'}
+                  strokeWidth="3.5"
+                />
+
+                {/* Point at Today */}
+                <circle
+                  cx="95"
+                  cy={currentReading.variance < -0.05 ? '45' : '18'}
+                  r="5"
+                  className="fill-[#e6a833] stroke-[#101b13] stroke-2 cursor-pointer"
+                />
+              </svg>
             </div>
           </div>
 
-          {/* SVG Chart Area */}
-          <div className="flex-1 relative w-full h-[300px] border-b border-l border-[#c1c8c2]/50 pb-8 pl-10 pt-4">
-            {/* Y-Axis Labels */}
-            <div className="absolute left-0 top-4 bottom-8 w-10 flex flex-col justify-between items-end pr-2 text-[12px] font-medium text-[#717973]">
-              <span>1.0</span>
-              <span>0.8</span>
-              <span>0.6</span>
-              <span>0.4</span>
-              <span>0.2</span>
-              <span>0.0</span>
-            </div>
-
-            {/* X-Axis Labels */}
-            <div className="absolute bottom-0 left-10 right-0 h-8 flex justify-between items-center text-[12px] font-medium text-[#717973] px-2">
-              <span>Day 1</span>
-              <span>Day {Math.round(agronomic.cropAgeDays * 0.3)}</span>
-              <span>Day {Math.round(agronomic.cropAgeDays * 0.6)}</span>
-              <span>Day {Math.round(agronomic.cropAgeDays * 0.85)}</span>
-              <span className="font-bold text-[#191c1c]">Today (Day {agronomic.cropAgeDays})</span>
-            </div>
-
-            {/* Background Grid Lines */}
-            <div className="absolute inset-0 left-10 bottom-8 top-4 flex flex-col justify-between pointer-events-none opacity-15">
-              <div className="w-full h-px bg-[#414844]"></div>
-              <div className="w-full h-px bg-[#414844]"></div>
-              <div className="w-full h-px bg-[#414844]"></div>
-              <div className="w-full h-px bg-[#414844]"></div>
-              <div className="w-full h-px bg-[#414844]"></div>
-            </div>
-
-            {/* Responsive SVG Curves */}
-            <svg
-              className="absolute inset-0 left-10 bottom-8 top-4 w-[calc(100%-2.5rem)] h-[calc(100%-3rem)] overflow-visible"
-              preserveAspectRatio="none"
-              viewBox="0 0 100 100"
-            >
-              {/* Expected Line */}
-              <path
-                d="M 5,80 Q 25,65 50,40 T 75,25 T 95,18"
-                fill="none"
-                stroke="#1b4332"
-                strokeWidth="2.5"
-                strokeDasharray="4 4"
-                className="opacity-70"
-              />
-
-              {/* Anomaly Shade if variance is negative */}
-              {currentReading.variance < -0.05 && (
-                <path
-                  d="M 50,48 Q 65,40 75,32 L 95,38 L 95,18 L 75,25 L 50,40 Z"
-                  fill="#a03f2e"
-                  className="opacity-20"
-                />
-              )}
-
-              {/* Observed Line */}
-              <path
-                d={
-                  currentReading.variance < -0.05
-                    ? "M 5,82 Q 28,68 50,48 T 75,32 Q 85,34 95,38"
-                    : "M 5,80 Q 25,64 50,38 T 75,22 T 95,16"
-                }
-                fill="none"
-                stroke={currentReading.variance < -0.05 ? "#a03f2e" : "#012d1d"}
-                strokeWidth="3.5"
-                className="drop-shadow-xs"
-              />
-
-              {/* Point at Today */}
-              <circle
-                cx="95"
-                cy={currentReading.variance < -0.05 ? "38" : "16"}
-                r="4.5"
-                className="fill-[#a03f2e] stroke-white stroke-2 hover:scale-150 transition-transform cursor-pointer"
-                onMouseEnter={() =>
-                  setHoveredPoint({
-                    obs: currentReading.observed,
-                    exp: currentReading.expected,
-                    label: 'Today',
-                  })
-                }
-                onMouseLeave={() => setHoveredPoint(null)}
-              />
-            </svg>
-
-            {/* Tooltip */}
-            <div className="absolute right-4 top-[25%] bg-[#2e3131] text-white px-3 py-2 rounded-lg text-[12px] shadow-lg transform -translate-y-full pointer-events-none z-30">
-              <div className="font-semibold text-white">Observed: {currentReading.observed.toFixed(2)}</div>
-              <div className="text-[#a5d0b9]">Expected: {currentReading.expected.toFixed(2)}</div>
-              <div className={`text-[11px] font-bold mt-0.5 ${currentReading.variance < 0 ? 'text-[#ffb4a5]' : 'text-[#c1ecd4]'}`}>
-                Variance: {currentReading.variance > 0 ? `+${currentReading.variance.toFixed(2)}` : currentReading.variance.toFixed(2)}
-              </div>
-            </div>
+          {/* Scientific Disclaimer Pill (Slide 7 & 15) */}
+          <div className="mt-4 pt-3 border-t border-[#e2e8f0] flex flex-wrap items-center justify-between gap-2 text-[11px] text-[#64748b]">
+            <span><strong>Scientific Honesty:</strong> NDVI measures canopy greenness vigor — not soil fertility or disease.</span>
+            <span className="font-mono text-[#0f172a] font-bold">Variance: {currentReading.variance > 0 ? `+${currentReading.variance.toFixed(2)}` : currentReading.variance.toFixed(2)}</span>
           </div>
         </div>
 
-        {/* Right Column: Real Live Map & Anomaly Panel (Spans 5 cols) */}
+        {/* Right Col: Map & Scout Anomaly Dispatch (Spans 5 cols) */}
         <div className="xl:col-span-5 flex flex-col gap-6">
-          {/* Anomaly Alert Card */}
+          {/* Anomaly Card if present */}
           {hasAnomaly && !anomalyDismissed && (
-            <div className="bg-white rounded-2xl shadow-[0_4px_12px_rgba(0,0,0,0.05)] border-l-4 border-l-[#a03f2e] border border-[#c1c8c2]/30 p-6 flex flex-col relative overflow-hidden">
-              <div className="absolute inset-0 bg-[#a03f2e] opacity-[0.03] pointer-events-none"></div>
-              <div className="flex items-start gap-3 mb-2 relative z-10">
-                <span className="material-symbols-outlined text-[#a03f2e] text-[28px]">warning</span>
-                <div>
-                  <h3 className="text-[18px] font-bold text-[#191c1c] leading-tight">Inspection Recommended</h3>
-                  <p className="text-[12px] text-[#a03f2e] font-bold uppercase tracking-wider mt-0.5">NDVI Anomaly Detected</p>
+            <div className="bg-red-50 rounded-3xl shadow-sm border border-red-200 p-6 flex flex-col justify-between">
+              <div>
+                <div className="flex items-start gap-3 mb-2">
+                  <span className="material-symbols-outlined text-red-600 text-[26px]">warning</span>
+                  <div>
+                    <h3 className="text-[17px] font-bold text-red-950">Ground Inspection Recommended</h3>
+                    <p className="text-[11px] text-red-700 font-bold uppercase tracking-wider">NDVI Anomaly Detected (Slide 8)</p>
+                  </div>
                 </div>
+                <p className="text-[13px] text-red-900 leading-relaxed mt-2">
+                  Canopy NDVI is tracking <strong className="text-red-700 font-bold">{currentReading.variance.toFixed(2)}</strong> below the expected stage baseline. This flags for physical scouting (water, pests, or drainage), not automated diagnosis.
+                </p>
               </div>
-              <p className="text-[14px] text-[#414844] leading-relaxed relative z-10 mb-4 mt-2">
-                Observed NDVI is tracking <strong className="text-[#a03f2e]">{currentReading.variance.toFixed(2)}</strong> below the expected canopy baseline for {farm.cropDisplayName} at {farm.locationName}. Ground inspection recommended.
-              </p>
-              <div className="mt-auto relative z-10 pt-3 border-t border-[#c1c8c2]/30 flex justify-end gap-3">
+
+              <div className="mt-4 pt-3 border-t border-red-200 flex justify-end gap-2">
                 <button
                   onClick={() => setAnomalyDismissed(true)}
-                  className="border border-[#a03f2e] text-[#a03f2e] text-[13px] font-semibold py-2 px-4 rounded-lg hover:bg-[#ffdad3] transition-colors cursor-pointer"
+                  className="text-red-700 border border-red-300 px-3 py-1.5 rounded-lg text-[12px] font-bold hover:bg-red-100"
                 >
                   Dismiss
                 </button>
                 <button
                   onClick={onScheduleInspection}
-                  className="bg-[#a03f2e] hover:bg-[#802919] text-white text-[13px] font-semibold py-2 px-4 rounded-lg transition-colors shadow-xs cursor-pointer active:scale-98"
+                  className="bg-red-700 hover:bg-red-800 text-white px-4 py-1.5 rounded-lg text-[12px] font-bold shadow-xs cursor-pointer"
                 >
-                  Schedule Inspection
+                  Schedule Inspection Order
                 </button>
               </div>
             </div>
           )}
 
-          {/* Synchronized Live Satellite View for This Address */}
-          <div className="bg-white rounded-2xl shadow-[0_4px_12px_rgba(0,0,0,0.05)] border border-[#c1c8c2]/30 p-6 flex flex-col">
+          {/* Interactive Satellite Parcel Map */}
+          <div className="bg-white rounded-3xl shadow-sm border border-[#cbd5e1] p-6 flex flex-col justify-between">
             <div className="flex justify-between items-center mb-3">
-              <h3 className="text-[16px] font-bold text-[#191c1c] flex items-center gap-1.5">
-                <span className="material-symbols-outlined text-[#012d1d] text-[20px]">satellite_alt</span>
+              <h3 className="text-[16px] font-extrabold text-[#0f172a] flex items-center gap-1.5">
+                <span className="material-symbols-outlined text-[#1e3a29] text-[20px]">layers</span>
                 <span>Live Satellite Layer ({farm.locationName})</span>
               </h3>
-              <span className="text-[11px] font-semibold text-[#002114] bg-[#c1ecd4] px-2.5 py-1 rounded-md">
-                Live Tiles
+              <span className="text-[11px] font-bold text-[#065f46] bg-[#d1fae5] px-2.5 py-0.5 rounded-md">
+                10m Optical
               </span>
             </div>
 
-            {/* Interactive Satellite Map component centered on actual coordinates */}
-            <div className="w-full rounded-xl overflow-hidden mb-3">
-              <InteractiveSatelliteMap
-                latitude={farm.latitude}
-                longitude={farm.longitude}
-                locationName={`${farm.name} (${farm.cropDisplayName})`}
-                areaHectares={farm.areaHectares}
-                onCoordinatesChanged={() => {}}
-              />
-            </div>
-
-            {/* Metadata Grid */}
-            <div className="grid grid-cols-2 gap-3 pt-2 border-t border-[#c1c8c2]/30 text-[13px]">
-              <div>
-                <p className="text-[11px] font-medium text-[#717973] uppercase tracking-wider">Field Parcel Area</p>
-                <p className="text-[14px] font-semibold text-[#191c1c] mt-0.5">{farm.areaHectares} ha</p>
-              </div>
-              <div>
-                <p className="text-[11px] font-medium text-[#717973] uppercase tracking-wider">Coordinates</p>
-                <p className="text-[14px] font-semibold text-[#191c1c] mt-0.5 font-mono text-[12px]">
-                  {farm.latitude.toFixed(4)}°, {farm.longitude.toFixed(4)}°
-                </p>
-              </div>
-            </div>
+            <InteractiveSatelliteMap
+              latitude={farm.latitude}
+              longitude={farm.longitude}
+              locationName={`${farm.name} (${farm.cropDisplayName})`}
+              areaHectares={farm.areaHectares}
+              onCoordinatesChanged={() => {}}
+            />
           </div>
         </div>
       </div>
 
-      {/* Contextual Data Table */}
-      <div className="mt-8 bg-white rounded-2xl shadow-[0_4px_12px_rgba(0,0,0,0.05)] border border-[#c1c8c2]/30 overflow-hidden">
-        <div className="p-6 border-b border-[#c1c8c2]/30 flex justify-between items-center">
+      {/* Historical Readings Log */}
+      <div className="mt-6 bg-white rounded-3xl shadow-sm border border-[#cbd5e1] overflow-hidden">
+        <div className="p-5 border-b border-[#e2e8f0] flex justify-between items-center">
           <div>
-            <h3 className="text-[18px] font-bold text-[#191c1c]">Recent Readings Log ({farm.locationName})</h3>
-            <p className="text-[12px] text-[#414844]">Multi-spectral Sentinel-2 NDVI aggregation calibrated for {farm.cropDisplayName}</p>
+            <h3 className="text-[17px] font-extrabold text-[#0f172a]">Sentinel-2 Multispectral Log ({farm.name})</h3>
+            <p className="text-[12px] text-[#64748b]">Historical optical passes calibrated for {farm.cropDisplayName}</p>
           </div>
           <button
             onClick={onNewSurvey}
-            className="text-[#012d1d] hover:text-[#1b4332] text-[13px] font-semibold hover:underline cursor-pointer flex items-center gap-1"
+            className="text-[#1e3a29] hover:text-[#14281c] text-[12px] font-bold hover:underline cursor-pointer flex items-center gap-1"
           >
-            <span>+ Log Ground Check</span>
+            <span className="material-symbols-outlined text-[16px]">add</span>
+            <span>Log Ground Observation</span>
           </button>
         </div>
 
         <div className="w-full overflow-x-auto">
-          <table className="w-full text-left border-collapse">
+          <table className="w-full text-left border-collapse text-[13px]">
             <thead>
-              <tr className="bg-[#f3f4f3] border-b border-[#c1c8c2]/40 text-[12px] font-semibold text-[#414844] uppercase tracking-wider">
-                <th className="py-3.5 px-6">Date</th>
-                <th className="py-3.5 px-6">Observed NDVI</th>
-                <th className="py-3.5 px-6">Expected NDVI</th>
-                <th className="py-3.5 px-6">Variance</th>
-                <th className="py-3.5 px-6">Status</th>
+              <tr className="bg-[#f8fafc] border-b border-[#e2e8f0] text-[11px] font-bold text-[#64748b] uppercase tracking-wider">
+                <th className="py-3 px-6">Observation Date</th>
+                <th className="py-3 px-6">Observed NDVI</th>
+                <th className="py-3 px-6">Expected Baseline</th>
+                <th className="py-3 px-6">Variance</th>
+                <th className="py-3 px-6">Scene Quality</th>
+                <th className="py-3 px-6">Status</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#c1c8c2]/20 text-[14px]">
+            <tbody className="divide-y divide-[#f1f5f9]">
               {ndviReadings.map((row, idx) => (
-                <tr
-                  key={idx}
-                  className="hover:bg-[#f9f9f8] transition-colors"
-                >
-                  <td className="py-3.5 px-6 font-medium text-[#191c1c]">{row.date}</td>
-                  <td className="py-3.5 px-6 font-bold text-[#191c1c]">{row.observed.toFixed(2)}</td>
-                  <td className="py-3.5 px-6 text-[#414844]">{row.expected.toFixed(2)}</td>
-                  <td className={`py-3.5 px-6 font-semibold ${row.variance < 0 ? 'text-[#a03f2e]' : 'text-[#012d1d]'}`}>
+                <tr key={idx} className="hover:bg-[#f8fafc] transition-colors">
+                  <td className="py-3 px-6 font-bold text-[#0f172a]">{row.date}</td>
+                  <td className="py-3 px-6 font-extrabold text-[#1e3a29] font-mono">{row.observed.toFixed(2)}</td>
+                  <td className="py-3 px-6 text-[#64748b] font-mono">{row.expected.toFixed(2)}</td>
+                  <td className={`py-3 px-6 font-bold font-mono ${row.variance < 0 ? 'text-red-600' : 'text-emerald-700'}`}>
                     {row.variance > 0 ? `+${row.variance.toFixed(2)}` : row.variance.toFixed(2)}
                   </td>
-                  <td className="py-3.5 px-6">
-                    {row.status === 'High Deviation' && (
-                      <span className="inline-flex items-center gap-1 bg-[#ffdad6] text-[#93000a] px-2.5 py-1 rounded-full text-[12px] font-bold">
-                        <span className="material-symbols-outlined text-[14px]">arrow_downward</span>
-                        High Deviation
-                      </span>
-                    )}
-                    {row.status === 'Monitoring' && (
-                      <span className="inline-flex items-center gap-1 bg-[#e1e3e2] text-[#414844] px-2.5 py-1 rounded-full text-[12px] font-semibold">
-                        Monitoring
-                      </span>
-                    )}
-                    {row.status === 'Normal' && (
-                      <span className="inline-flex items-center gap-1 bg-[#c1ecd4] text-[#002114] px-2.5 py-1 rounded-full text-[12px] font-semibold">
-                        Normal
-                      </span>
-                    )}
+                  <td className="py-3 px-6 text-[#64748b]">
+                    {row.cloudCoverPercent !== undefined ? `${row.cloudCoverPercent}% Cloud` : 'Clear'}
+                  </td>
+                  <td className="py-3 px-6">
+                    <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
+                      row.status === 'High Deviation'
+                        ? 'bg-red-100 text-red-900 border border-red-300'
+                        : row.status === 'Monitoring'
+                        ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                        : 'bg-emerald-100 text-emerald-900 border border-emerald-300'
+                    }`}>
+                      {row.status}
+                    </span>
                   </td>
                 </tr>
               ))}

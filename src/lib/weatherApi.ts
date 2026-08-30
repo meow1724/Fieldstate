@@ -1,5 +1,5 @@
-import { WeatherDay, AgronomicState, NdviReading, FarmProfile, SoilType, IrrigationMethod } from '../types';
-import { getGrowthStageAndKc, calculateCropAge, calculateEtc, calculateWaterVolumeLitres, SOIL_CHARACTERISTICS, IRRIGATION_EFFICIENCIES } from './agronomy';
+import { WeatherDay, AgronomicState, NdviReading, FarmProfile } from '../types';
+import { getGrowthStageAndKc, calculateCropAge, calculateEtc, calculateWaterVolumeLitres, calculatePumpingEnergyAndCost, SOIL_CHARACTERISTICS } from './agronomy';
 
 export interface LocationSearchResult {
   id: number;
@@ -8,7 +8,7 @@ export interface LocationSearchResult {
   longitude: number;
   elevation?: number;
   country?: string;
-  admin1?: string; // state / province
+  admin1?: string;
   timezone?: string;
 }
 
@@ -17,25 +17,19 @@ export interface LiveWeatherData {
   currentHumidity: number;
   currentWindSpeed: number;
   currentWindDirection: string;
-  currentSoilMoisture: number; // m3/m3 or converted to %
+  currentSoilMoisture: number; // %
   daily: WeatherDay[];
   referenceEt0Today: number;
   rainForecast24h: number;
   rainForecast7d: number;
 }
 
-/**
- * Convert meteorological degrees to cardinal compass string
- */
 export function degreesToCardinal(deg: number): string {
   const cardinals = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
   const index = Math.round((deg % 360) / 45) % 8;
   return cardinals[index];
 }
 
-/**
- * Map WMO weather code to label and Google Material icon name
- */
 export function mapWeatherCode(code: number): { label: string; icon: string } {
   switch (code) {
     case 0:
@@ -76,26 +70,21 @@ export function mapWeatherCode(code: number): { label: string; icon: string } {
   }
 }
 
-/**
- * Fetch real-time weather and FAO-56 reference evapotranspiration (ET0) from Open-Meteo
- */
 export async function fetchLiveWeatherData(latitude: number, longitude: number): Promise<LiveWeatherData> {
   const url = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,et0_fao_evapotranspiration,wind_speed_10m_max,wind_direction_10m_dominant&hourly=soil_moisture_0_to_10cm,relative_humidity_2m,temperature_2m,wind_speed_10m&timezone=auto`;
-
   const res = await fetch(url);
   if (!res.ok) {
     throw new Error(`Weather API returned status ${res.status}`);
   }
-
   const data = await res.json();
   const dailyData = data.daily;
   const hourlyData = data.hourly;
 
   const currentSoilMoistureRaw = hourlyData?.soil_moisture_0_to_10cm?.[0] ?? 0.28;
   const currentSoilMoisturePercent = Math.min(100, Math.max(10, Math.round((currentSoilMoistureRaw / 0.40) * 100)));
-  const currentTemp = hourlyData?.temperature_2m?.[0] ?? 22;
-  const currentHumidity = hourlyData?.relative_humidity_2m?.[0] ?? 50;
-  const currentWindSpeed = hourlyData?.wind_speed_10m?.[0] ?? 12;
+  const currentTemp = Math.round(hourlyData?.temperature_2m?.[0] ?? 22);
+  const currentHumidity = Math.round(hourlyData?.relative_humidity_2m?.[0] ?? 50);
+  const currentWindSpeed = Math.round(hourlyData?.wind_speed_10m?.[0] ?? 12);
 
   const days: WeatherDay[] = [];
   const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -117,14 +106,14 @@ export async function fetchLiveWeatherData(latitude: number, longitude: number):
       rainMm: Number((dailyData.precipitation_sum?.[i] ?? 0).toFixed(1)),
       tempMax: Math.round(dailyData.temperature_2m_max?.[i] ?? 24),
       tempMin: Math.round(dailyData.temperature_2m_min?.[i] ?? 15),
-      humidity: Math.round(currentHumidity),
+      humidity: currentHumidity,
       windSpeedKmh: Math.round(dailyData.wind_speed_10m_max?.[i] ?? 10),
       windDirection: degreesToCardinal(dailyData.wind_direction_10m_dominant?.[i] ?? 0),
       et0: Number((dailyData.et0_fao_evapotranspiration?.[i] ?? 4.5).toFixed(1)),
     });
   }
 
-  const referenceEt0Today = days[0]?.et0 || 4.5;
+  const referenceEt0Today = days[0]?.et0 || 4.8;
   const rainForecast24h = days[0]?.rainMm || 0;
   const rainForecast7d = Number(days.reduce((acc, d) => acc + d.rainMm, 0).toFixed(1));
   const currentWindDir = days[0]?.windDirection || 'NW';
@@ -142,9 +131,6 @@ export async function fetchLiveWeatherData(latitude: number, longitude: number):
   };
 }
 
-/**
- * Search real locations across the world using Open-Meteo Geocoding
- */
 export async function searchLocations(query: string): Promise<LocationSearchResult[]> {
   if (!query || query.trim().length < 2) return [];
   const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=8&language=en&format=json`;
@@ -163,10 +149,7 @@ export async function searchLocations(query: string): Promise<LocationSearchResu
   }));
 }
 
-/**
- * Calculate USDA Plant Hardiness Zone estimate from latitude and average minimum temperature
- */
-export function estimateHardinessZone(latitude: number, tempMinWinter = 5): string {
+export function estimateHardinessZone(latitude: number): string {
   const absLat = Math.abs(latitude);
   if (absLat < 20) return 'Zone 11a';
   if (absLat < 28) return 'Zone 10b';
@@ -178,13 +161,11 @@ export function estimateHardinessZone(latitude: number, tempMinWinter = 5): stri
   return 'Zone 4a';
 }
 
-/**
- * Synthesize dynamic real-time field state combining real weather API + deterministic FAO-56 crop model
- */
 export function computeRealFieldAgronomy(
   farm: FarmProfile,
   weatherData: LiveWeatherData,
-  appliedIrrigationMm = 0
+  appliedIrrigationMm = 0,
+  simulateCloudGap = false
 ): { agronomic: AgronomicState; ndviReadings: NdviReading[]; ndviHistoryChart: any[] } {
   const cropAgeDays = calculateCropAge(farm.plantingDate);
   const stageInfo = getGrowthStageAndKc(farm.crop, cropAgeDays);
@@ -194,10 +175,8 @@ export function computeRealFieldAgronomy(
   const rain24h = weatherData.rainForecast24h;
   const effectiveRain = Number(Math.min(rain24h, rain24h * 0.8).toFixed(1));
 
-  // Compute soil moisture %
   const soilMult = SOIL_CHARACTERISTICS[farm.soilType]?.multiplier || 1.0;
   let soilMoisturePercent = weatherData.currentSoilMoisture;
-  // Adjust with soil texture retention
   soilMoisturePercent = Math.min(100, Math.max(10, Math.round(soilMoisturePercent * soilMult)));
 
   const netWaterChange = Number((effectiveRain + appliedIrrigationMm - cropEtDemand).toFixed(2));
@@ -209,6 +188,16 @@ export function computeRealFieldAgronomy(
   else if (soilMoisturePercent < 50) waterStatus = 'dry';
   else if (soilMoisturePercent > 85) waterStatus = 'saturated';
   else waterStatus = 'optimal';
+
+  // Calculate potential water & energy savings if farmer follows WAIT or precise irrigation
+  const avoidedWaterLitres = calculateWaterVolumeLitres(cropEtDemand, farm.areaHectares);
+  const avoidedWaterM3 = avoidedWaterLitres / 1000;
+  const { energyKwh, costDollars, co2eKg } = calculatePumpingEnergyAndCost(
+    avoidedWaterM3,
+    farm.pumpingHeadMeters || 30,
+    farm.pumpType || 'electric_grid',
+    farm.energyTariffPerKwh || 0.16
+  );
 
   const agronomic: AgronomicState = {
     cropAgeDays,
@@ -226,33 +215,38 @@ export function computeRealFieldAgronomy(
     rootZoneDepletion,
     availableWater,
     waterStatus,
+    potentialWaterSavedLitres: avoidedWaterLitres,
+    potentialCostSavedDollars: costDollars,
+    potentialCo2SavedKg: co2eKg,
+    potentialPumpingKwhSaved: energyKwh,
   };
 
-  // Generate realistic NDVI readings corresponding to actual stage and moisture
-  // Initial stage NDVI ~ 0.2-0.3, Development ~ 0.4-0.6, Mid-season ~ 0.7-0.85, Late ~ 0.5-0.7
   const baseExpected = stageInfo.stage === 'initial' ? 0.28
     : stageInfo.stage === 'development' ? 0.55
     : stageInfo.stage === 'mid-season' ? 0.78
     : 0.60;
 
-  const moistureModifier = soilMoisturePercent < 40 ? -0.08 : soilMoisturePercent > 70 ? 0.02 : 0.0;
+  const moistureModifier = soilMoisturePercent < 40 ? -0.07 : soilMoisturePercent > 70 ? 0.02 : 0.0;
   const observedNdvi = Number(Math.max(0.15, Math.min(0.92, baseExpected + moistureModifier)).toFixed(2));
   const variance = Number((observedNdvi - baseExpected).toFixed(2));
-
   const status: 'Normal' | 'Monitoring' | 'High Deviation' =
     variance <= -0.10 ? 'High Deviation' : variance <= -0.04 ? 'Monitoring' : 'Normal';
 
   const todayStr = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+  const cloudCover = simulateCloudGap ? 85 : Math.round(weatherData.daily[0]?.pop ? weatherData.daily[0].pop / 3 : 8);
+
   const ndviReadings: NdviReading[] = [
     {
       date: `Today (${todayStr})`,
-      observed: observedNdvi,
+      observed: simulateCloudGap ? Number((baseExpected * 0.96).toFixed(2)) : observedNdvi,
       expected: baseExpected,
-      variance,
-      status,
-      cloudCover: Math.round(weatherData.daily[0]?.pop ? weatherData.daily[0].pop / 2 : 10),
+      variance: simulateCloudGap ? -0.03 : variance,
+      status: simulateCloudGap ? 'Monitoring' : status,
+      cloudCoverPercent: cloudCover,
       satellite: 'Sentinel-2 Multispectral',
       resolution: '10m / pixel',
+      isCloudGapFallback: simulateCloudGap,
     },
     {
       date: '7 Days Ago',
@@ -260,7 +254,7 @@ export function computeRealFieldAgronomy(
       expected: Number((baseExpected * 0.94).toFixed(2)),
       variance: 0.01,
       status: 'Normal',
-      cloudCover: 5,
+      cloudCoverPercent: 5,
     },
     {
       date: '14 Days Ago',
@@ -268,7 +262,7 @@ export function computeRealFieldAgronomy(
       expected: Number((baseExpected * 0.87).toFixed(2)),
       variance: 0.01,
       status: 'Normal',
-      cloudCover: 8,
+      cloudCoverPercent: 12,
     },
     {
       date: '21 Days Ago',
@@ -276,7 +270,7 @@ export function computeRealFieldAgronomy(
       expected: Number((baseExpected * 0.75).toFixed(2)),
       variance: 0.01,
       status: 'Normal',
-      cloudCover: 12,
+      cloudCoverPercent: 4,
     },
   ];
 

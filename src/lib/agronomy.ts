@@ -6,6 +6,7 @@ import {
   NdviReading,
   SoilType,
   IrrigationMethod,
+  DataProvenanceTag,
 } from '../types';
 
 export interface CropModelConfig {
@@ -25,7 +26,7 @@ export const CROP_DATABASE: Record<string, CropModelConfig> = {
     defaultRootDepthM: 0.6,
     stressSensitivity: 'High',
     stages: [
-      { stage: 'initial', stageName: 'Initial (Transplanting/Vegetative)', dayStart: 0, dayEnd: 20, kc: 1.05, description: 'Early vegetative seedling development and tillering.' },
+      { stage: 'initial', stageName: 'Initial (Transplanting/Tillering)', dayStart: 0, dayEnd: 20, kc: 1.05, description: 'Early vegetative seedling development and tillering.' },
       { stage: 'development', stageName: 'Development (Tillering/Stem)', dayStart: 21, dayEnd: 45, kc: 1.10, description: 'Rapid leaf area growth and panicle initiation.' },
       { stage: 'mid-season', stageName: 'Mid-Season (Panicle/Flowering)', dayStart: 46, dayEnd: 85, kc: 1.15, description: 'Peak water demand during heading and flowering.' },
       { stage: 'late-season', stageName: 'Late-Season (Ripening/Maturity)', dayStart: 86, dayEnd: 120, kc: 0.90, description: 'Grain filling and dry-down before harvest.' },
@@ -72,7 +73,7 @@ export const CROP_DATABASE: Record<string, CropModelConfig> = {
   },
   orchard: {
     name: 'orchard',
-    displayName: 'Orchard / Fruit Trees',
+    displayName: 'Fruit Orchard / Almonds',
     totalCycleDays: 365,
     defaultRootDepthM: 1.5,
     stressSensitivity: 'Medium',
@@ -96,24 +97,8 @@ export const CROP_DATABASE: Record<string, CropModelConfig> = {
       { stage: 'late-season', stageName: 'Late-Season (Post-Harvest Senescence)', dayStart: 181, dayEnd: 240, kc: 0.45, description: 'Carbohydrate mobilization to roots.' },
     ],
   },
-  mixed: {
-    name: 'mixed',
-    displayName: 'Mixed Vegetable',
-    totalCycleDays: 90,
-    defaultRootDepthM: 0.6,
-    stressSensitivity: 'High',
-    stages: [
-      { stage: 'initial', stageName: 'Initial (Transplant/Establishment)', dayStart: 0, dayEnd: 20, kc: 0.60, description: 'Rooting and early vegetative growth.' },
-      { stage: 'development', stageName: 'Development (Vegetative Growth)', dayStart: 21, dayEnd: 45, kc: 0.90, description: 'Rapid leaf development and budding.' },
-      { stage: 'mid-season', stageName: 'Mid-Season (Fruiting/Heading)', dayStart: 46, dayEnd: 70, kc: 1.10, description: 'Maximum vegetative density and fruit fill.' },
-      { stage: 'late-season', stageName: 'Late-Season (Harvest Phase)', dayStart: 71, dayEnd: 90, kc: 0.85, description: 'Final maturation and succession harvesting.' },
-    ],
-  },
 };
 
-/**
- * Calculate crop age in days from planting date
- */
 export function calculateCropAge(plantingDateStr: string, targetDate = new Date()): number {
   const planting = new Date(plantingDateStr);
   const diffTime = targetDate.getTime() - planting.getTime();
@@ -121,107 +106,177 @@ export function calculateCropAge(plantingDateStr: string, targetDate = new Date(
   return Math.max(1, days);
 }
 
-/**
- * Lookup growth stage and Kc for a specific crop and age
- */
 export function getGrowthStageAndKc(cropKey: string, ageDays: number): GrowthStageInfo {
-  const crop = CROP_DATABASE[cropKey.toLowerCase()] || CROP_DATABASE.corn;
+  const crop = CROP_DATABASE[cropKey.toLowerCase()] || CROP_DATABASE.rice;
   for (const stage of crop.stages) {
     if (ageDays >= stage.dayStart && ageDays <= stage.dayEnd) {
       return stage;
     }
   }
-  // If beyond last stage, return late season
   return crop.stages[crop.stages.length - 1];
 }
 
-/**
- * Calculate Crop Evapotranspiration ETc = Kc * ET0 (mm/day)
- */
 export function calculateEtc(et0: number, kc: number): number {
   return Number((et0 * kc).toFixed(2));
 }
 
-/**
- * Convert mm depth of water across hectares to total Litres
- * 1 mm over 1 hectare = 10,000 Litres (1 m3 = 1,000 L, 1 ha = 10,000 m2 => 0.001 m * 10,000 m2 = 10 m3 = 10,000 L)
- */
 export function calculateWaterVolumeLitres(waterDepthMm: number, areaHectares: number): number {
+  // 1 mm over 1 ha = 10 m3 = 10,000 Litres
   return Math.round(waterDepthMm * areaHectares * 10000);
 }
 
-/**
- * Soil water retention characteristics
- */
 export const SOIL_CHARACTERISTICS: Record<SoilType, { name: string; availableWaterCapacityMmPerM: number; infiltrationRateMmPerHour: number; multiplier: number }> = {
   sandy: { name: 'Sandy Soil', availableWaterCapacityMmPerM: 80, infiltrationRateMmPerHour: 30, multiplier: 0.85 },
   loam: { name: 'Loam Soil', availableWaterCapacityMmPerM: 140, infiltrationRateMmPerHour: 15, multiplier: 1.0 },
   clay: { name: 'Clay Soil', availableWaterCapacityMmPerM: 180, infiltrationRateMmPerHour: 5, multiplier: 1.15 },
 };
 
-/**
- * Irrigation method efficiency
- */
 export const IRRIGATION_EFFICIENCIES: Record<IrrigationMethod, { name: string; efficiency: number; description: string }> = {
-  drip: { name: 'Drip Irrigation', efficiency: 0.90, description: 'Localized precision emitters with minimal evaporation or drift.' },
-  sprinkler: { name: 'Sprinkler System', efficiency: 0.75, description: 'Overhead spray with moderate evaporative and wind losses.' },
-  flood: { name: 'Flood / Furrow', efficiency: 0.60, description: 'Surface gravitational flooding with higher deep percolation losses.' },
+  drip: { name: 'Drip Irrigation', efficiency: 0.90, description: 'Targeted root-zone emitters with 90% application efficiency.' },
+  sprinkler: { name: 'Center Pivot / Sprinkler', efficiency: 0.75, description: 'Overhead spray with 75% efficiency (wind & evaporation loss).' },
+  flood: { name: 'Flood / Basin', efficiency: 0.60, description: 'Basin gravitation flooding with 60% efficiency (percolation & runoff).' },
 };
 
 /**
- * Deterministic Decision Engine
+ * Pumping Energy & Cost Calculator (Hydraulic Physics Model)
+ * Energy (kWh) = (Volume_m3 * 9.81 * Head_meters) / (3600 * Pump_Efficiency)
+ */
+export function calculatePumpingEnergyAndCost(
+  waterVolumeM3: number,
+  headMeters = 30,
+  pumpType: 'diesel' | 'electric_grid' | 'solar' = 'electric_grid',
+  tariffPerKwh = 0.16
+): {
+  energyKwh: number;
+  costDollars: number;
+  co2eKg: number;
+} {
+  const pumpEfficiency = 0.65; // standard agricultural pump efficiency
+  const energyKwh = Number(((waterVolumeM3 * 9.81 * headMeters) / (3600 * pumpEfficiency)).toFixed(1));
+
+  let costDollars = 0;
+  let co2eKg = 0;
+
+  if (pumpType === 'diesel') {
+    // ~0.35 L diesel per kWh hydraulic work; $1.15/L diesel; 2.68 kg CO2e / L
+    const dieselLitres = energyKwh * 0.35;
+    costDollars = Number((dieselLitres * 1.25).toFixed(2));
+    co2eKg = Number((dieselLitres * 2.68).toFixed(1));
+  } else if (pumpType === 'solar') {
+    costDollars = Number((energyKwh * 0.02).toFixed(2)); // O&M depreciation
+    co2eKg = Number((energyKwh * 0.04).toFixed(1));
+  } else {
+    // Grid electricity (US/Global avg 0.42 kg CO2e / kWh)
+    costDollars = Number((energyKwh * tariffPerKwh).toFixed(2));
+    co2eKg = Number((energyKwh * 0.45).toFixed(1));
+  }
+
+  return { energyKwh, costDollars, co2eKg };
+}
+
+/**
+ * Deterministic Decision Engine implementing the Fieldstate 3-signal model:
+ * Weather + Satellite NDVI + FAO-56 Crop Science -> One Decision (WAIT, IRRIGATE, INSPECT)
  */
 export function evaluateFarmDecision(
   farm: FarmProfile,
   agronomic: AgronomicState,
   recentNdvi: NdviReading[] = []
 ): Recommendation {
-  const { cropEtDemand, rain24h, soilMoisturePercent, effectiveRain } = agronomic;
+  const { cropEtDemand, rain24h, soilMoisturePercent } = agronomic;
   const latestNdvi = recentNdvi[0];
+  const isCloudGap = Boolean(latestNdvi?.isCloudGapFallback);
 
-  // 1. Check for significant NDVI anomaly (INSPECT action)
-  if (latestNdvi && latestNdvi.variance <= -0.10) {
+  // Provenance metadata objects
+  const provenance = {
+    demand: {
+      type: 'CALCULATED' as const,
+      label: 'Calculated',
+      source: 'FAO-56 Penman-Monteith ($ET_c = K_c \\times ET_0$)',
+      description: `Reference ET0 (${agronomic.referenceEt0} mm) multiplied by growth stage coefficient Kc (${agronomic.cropCoefficientKc}).`,
+      badgeColor: 'bg-emerald-100 text-emerald-800 border-emerald-300',
+    },
+    rain: {
+      type: 'PREDICTED' as const,
+      label: 'Predicted',
+      source: 'Open-Meteo High-Resolution NWP Radar Model',
+      description: `24-hour quantitative precipitation forecast at Lat ${farm.latitude.toFixed(3)}, Lon ${farm.longitude.toFixed(3)}.`,
+      badgeColor: 'bg-blue-100 text-blue-800 border-blue-300',
+    },
+    satellite: {
+      type: isCloudGap ? ('ESTIMATED' as const) : ('MEASURED' as const),
+      label: isCloudGap ? 'Estimated (Cloud Gap)' : 'Measured',
+      source: isCloudGap ? 'Lag-Interpolated Sentinel-2 Baseline' : 'ESA Copernicus Sentinel-2 Multispectral (10m)',
+      description: isCloudGap
+        ? 'Recent satellite passes had heavy cloud cover (>60%). System downgraded confidence and uses trailing optical baseline.'
+        : `Normalized Difference Vegetation Index (NIR - Red)/(NIR + Red) aggregated over ${farm.areaHectares} ha polygon.`,
+      badgeColor: isCloudGap ? 'bg-amber-100 text-amber-900 border-amber-300' : 'bg-purple-100 text-purple-900 border-purple-300',
+    },
+    soil: {
+      type: 'ESTIMATED' as const,
+      label: 'Estimated Status',
+      source: 'Dynamic Profile Water-Balance Model',
+      description: `Root zone water storage estimate ($S_t = S_{t-1} + R + I - ET_c$). Note: Not a physical underground probe measurement.`,
+      badgeColor: 'bg-stone-100 text-stone-800 border-stone-300',
+    },
+  };
+
+  // Signal 1: Significant NDVI Drop / Anomaly (INSPECT)
+  if (latestNdvi && latestNdvi.variance <= -0.09 && !isCloudGap) {
     return {
       action: 'INSPECT',
-      title: 'Inspection Recommended',
-      badgeText: 'Anomaly Detected',
+      title: 'Ground Inspection Recommended',
+      badgeText: 'INSPECT',
       cropDemandMm: cropEtDemand,
       rainForecast24hMm: rain24h,
       waterRecommendedMm: 0,
       waterRecommendedLitres: 0,
       confidence: 'High',
-      reason: `Observed NDVI is consistently tracking ${latestNdvi.variance.toFixed(2)} below the expected growth trajectory.`,
-      summary: `Vegetation vigor index indicates potential localized stress in the quadrant. Do not over-apply fertilizer or water blindly before visual field scouting.`,
-      detailedAnalysis: `Latest Sentinel-2 observation shows an NDVI of ${latestNdvi.observed.toFixed(2)} against a modeled baseline of ${latestNdvi.expected.toFixed(2)}. This -${Math.abs(latestNdvi.variance * 100).toFixed(0)}% deviation could stem from nutrient deficiency, pest hot-spots, or drainage blockage.`,
-      nextVerificationStep: 'Perform a scout survey in the northeast sector and record visual canopy color and root structure.',
+      confidenceReason: 'Clean Sentinel-2 optical scene (<10% cloud cover) confirmed anomalous vegetative vigor decline.',
+      reason: `Observed NDVI (${latestNdvi.observed.toFixed(2)}) is tracking ${(Math.abs(latestNdvi.variance) * 100).toFixed(0)}% below expected trajectory for ${farm.cropDisplayName}.`,
+      summary: `Vegetation vigor drop cannot be solely resolved by blind irrigation. Ground scouting recommended before applying inputs.`,
+      detailedAnalysis: `Sentinel-2 reflectance shows observed NDVI at ${latestNdvi.observed.toFixed(2)} against the modeled baseline of ${latestNdvi.expected.toFixed(2)}. This could indicate localized nutrient deficiency, weed hotspots, or pest emergence.`,
+      nextVerificationStep: 'Scout quadrant parcels, check root health, and document leaf chlorosis in a field survey.',
+      provenance,
     };
   }
 
-  // 2. Check if imminent rainfall offsets demand (WAIT action)
-  // If 24h rain >= ETc * 1.5 or rain >= 15mm while moisture is moderate or better
-  if (rain24h >= cropEtDemand * 1.3 || (rain24h >= 10 && soilMoisturePercent >= 40)) {
-    const litresSaved = calculateWaterVolumeLitres(cropEtDemand, farm.areaHectares);
+  // Signal 2: Imminent Rainfall covers demand (WAIT)
+  // If 24h Rain >= ETc * 1.2 or (Rain >= 12mm and soil not critically dry)
+  if (rain24h >= cropEtDemand * 1.2 || (rain24h >= 10 && soilMoisturePercent >= 38)) {
+    const avoidedLitres = calculateWaterVolumeLitres(cropEtDemand, farm.areaHectares);
+    const avoidedM3 = avoidedLitres / 1000;
+    const { energyKwh, costDollars, co2eKg } = calculatePumpingEnergyAndCost(
+      avoidedM3,
+      farm.pumpingHeadMeters || 30,
+      farm.pumpType || 'electric_grid',
+      farm.energyTariffPerKwh || 0.16
+    );
+
     return {
       action: 'WAIT',
-      title: 'Irrigation Recommendation',
+      title: 'Rain Forecast Covers Demand — Do Not Irrigate',
       badgeText: 'WAIT',
       cropDemandMm: cropEtDemand,
       rainForecast24hMm: rain24h,
       waterRecommendedMm: 0,
       waterRecommendedLitres: 0,
-      confidence: rain24h >= 20 ? 'High' : 'Medium',
-      reason: `${rain24h.toFixed(1)} mm of rainfall is forecast within the next 24 hours, which exceeds the daily crop demand of ${cropEtDemand.toFixed(1)} mm/day.`,
-      summary: `Postponing irrigation saves approximately ${litresSaved.toLocaleString()} litres of water today while avoiding nutrient leaching.`,
-      detailedAnalysis: `Rain forecast of ${rain24h.toFixed(1)} mm will replenish soil moisture storage naturally. Daily evapotranspiration demand (${cropEtDemand.toFixed(2)} mm) will be satisfied by natural precipitation.`,
-      nextVerificationStep: 'Reassess soil infiltration and runoff 12 hours after precipitation concludes.',
-      whyChanged: 'Rainfall forecast probability increased, offsetting the need for supplemental application.',
+      confidence: isCloudGap ? 'Medium' : rain24h >= 20 ? 'High' : 'Medium',
+      confidenceReason: isCloudGap
+        ? 'Confidence: Medium — based primarily on weather radar model because satellite scenes were cloud-covered.'
+        : 'High radar probability (>80%) and substantial forecast precipitation.',
+      reason: `Forecast rain (${rain24h.toFixed(1)} mm) exceeds daily crop water demand (${cropEtDemand.toFixed(1)} mm/day).`,
+      summary: `Holding irrigation today saves ~${avoidedLitres.toLocaleString()} L of water, ${energyKwh} kWh of pumping energy ($${costDollars.toFixed(2)}), and avoids fertilizer leaching.`,
+      detailedAnalysis: `Atmospheric precipitation of ${rain24h.toFixed(1)} mm will satisfy profile evapotranspiration naturally. Pumping irrigation water prior to rain causes deep runoff and root waterlogging.`,
+      nextVerificationStep: 'Recheck field 12 hours after precipitation event to measure actual rainfall infiltration.',
+      whyChanged: 'Rainfall forecast probability increased, offsetting the need for supplemental pumping.',
+      provenance,
     };
   }
 
-  // 3. Check if soil water is depleted and rainfall is insufficient (IRRIGATE action)
+  // Signal 3: Water Status Low & Negligible Rain (IRRIGATE)
   if (soilMoisturePercent < 55 || (rain24h < 2.0 && cropEtDemand >= 4.0)) {
-    // Recommend replenishing crop demand plus a safety margin up to field capacity
-    const deficitMm = Math.max(cropEtDemand, Number(((65 - soilMoisturePercent) * 0.2).toFixed(1)));
+    const deficitMm = Math.max(cropEtDemand, Number(((65 - soilMoisturePercent) * 0.25).toFixed(1)));
     const targetMm = Number(Math.min(25, Math.max(4.0, deficitMm)).toFixed(1));
     const efficiency = IRRIGATION_EFFICIENCIES[farm.irrigationMethod]?.efficiency || 0.8;
     const grossTargetMm = Number((targetMm / efficiency).toFixed(1));
@@ -229,69 +284,70 @@ export function evaluateFarmDecision(
 
     return {
       action: 'IRRIGATE',
-      title: 'Irrigation Required',
+      title: 'Deficit Replenishment Required',
       badgeText: 'IRRIGATE',
       cropDemandMm: cropEtDemand,
       rainForecast24hMm: rain24h,
       waterRecommendedMm: targetMm,
       waterRecommendedLitres: targetLitres,
-      confidence: 'High',
-      reason: `High evapotranspirative demand (${cropEtDemand.toFixed(1)} mm/day) combined with negligible forecast rainfall (${rain24h.toFixed(1)} mm) is driving soil moisture toward the stress threshold.`,
-      summary: `Apply ~${targetMm} mm (net) across ${farm.areaHectares} ha (approx. ${targetLitres.toLocaleString()} L) to maintain root-zone moisture in the optimal zone.`,
-      detailedAnalysis: `Based on Penman-Monteith ET0 and mid-season crop coefficient (Kc=${agronomic.cropCoefficientKc}), daily demand is ${cropEtDemand.toFixed(2)} mm. With ${farm.irrigationMethod} efficiency at ${(efficiency * 100).toFixed(0)}%, applying ${grossTargetMm} mm gross will offset depletion.`,
-      nextVerificationStep: 'Verify drip line pressure or sprinkler coverage during the early morning window to minimize wind drift.',
+      confidence: isCloudGap ? 'Medium' : 'High',
+      confidenceReason: isCloudGap
+        ? 'Confidence: Medium — Water balance deficit confirmed; satellite optical confirmation pending cloud clearance.'
+        : 'Water balance deficit verified with stable NDVI vigor.',
+      reason: `Evapotranspiration demand (${cropEtDemand.toFixed(1)} mm/day) exceeds negligible forecast rain (${rain24h.toFixed(1)} mm). Soil moisture approaching stress threshold.`,
+      summary: `Apply ~${targetMm} mm (${targetLitres.toLocaleString()} L across ${farm.areaHectares} ha) to maintain root-zone moisture in the optimal zone.`,
+      detailedAnalysis: `Based on Penman-Monteith ET0 (${agronomic.referenceEt0} mm/day) and crop coefficient ($K_c=${agronomic.cropCoefficientKc}$), profile is losing ${cropEtDemand.toFixed(1)} mm daily. Applying ${grossTargetMm} mm gross accounts for ${(efficiency * 100).toFixed(0)}% system efficiency.`,
+      nextVerificationStep: 'Run irrigation during early morning or evening to minimize evaporative drift loss.',
+      provenance,
     };
   }
 
-  // 4. Default: Adequate moisture and moderate weather (WAIT / MONITOR)
+  // Signal 4: Adequate moisture baseline (WAIT / MONITOR)
   return {
     action: 'WAIT',
-    title: 'Moisture Adequate',
-    badgeText: 'OPTIMAL',
+    title: 'Moisture Profile Adequate — Monitor',
+    badgeText: 'WAIT',
     cropDemandMm: cropEtDemand,
     rainForecast24hMm: rain24h,
     waterRecommendedMm: 0,
     waterRecommendedLitres: 0,
-    confidence: 'Medium',
-    reason: `Soil moisture balance (${soilMoisturePercent.toFixed(0)}% capacity) is currently optimal for ${farm.cropDisplayName}.`,
-    summary: `No immediate water application is needed today. Continue daily evapotranspiration monitoring.`,
-    detailedAnalysis: `Root zone moisture provides sufficient available buffer for the next 24-48 hours.`,
-    nextVerificationStep: 'Review 3-day weather trends tomorrow morning.',
+    confidence: isCloudGap ? 'Medium' : 'High',
+    confidenceReason: 'Soil buffer is optimal for current growth stage.',
+    reason: `Soil moisture buffer (${soilMoisturePercent.toFixed(0)}% capacity) is adequate for current crop stage.`,
+    summary: `No water application needed today. Continue standard monitoring.`,
+    detailedAnalysis: `Root zone contains sufficient available water buffer for the next 24-48 hours.`,
+    nextVerificationStep: 'Review 3-day weather and solar radiation tomorrow morning.',
+    provenance,
   };
 }
 
-/**
- * What-If Scenario Simulator:
- * Given a base agronomic state, simulate the resulting soil moisture and net water balance when applying X mm of irrigation
- */
 export function simulateIrrigationScenario(baseState: AgronomicState, appliedIrrigationMm: number) {
   const netChange = Number((baseState.effectiveRain + appliedIrrigationMm - baseState.cropEtDemand).toFixed(2));
-  // 1 mm net change corresponds to ~2% moisture shift on average loam
   let newMoisturePercent = Math.round(baseState.soilMoisturePercent + netChange * 2.5);
   newMoisturePercent = Math.max(5, Math.min(100, newMoisturePercent));
 
   let status: 'stress' | 'optimal' | 'saturated' = 'optimal';
   let insightText = '';
   let insightIcon = 'check_circle';
-  let insightColor = 'text-primary';
+  let insightColor = 'text-emerald-700';
 
   if (newMoisturePercent < 35) {
     status = 'stress';
     insightIcon = 'warning';
-    insightColor = 'text-secondary';
+    insightColor = 'text-amber-600';
     insightText = 'Warning: Soil moisture approaching wilting point. Crop stress likely.';
   } else if (newMoisturePercent > 85) {
     status = 'saturated';
     insightIcon = 'water_drop';
-    insightColor = 'text-tertiary-container';
-    insightText = 'Note: Approaching field capacity. Risk of runoff or deep percolation if unexpected rain occurs.';
+    insightColor = 'text-cyan-700';
+    insightText = 'Caution: Soil approaching saturation. High risk of runoff and nutrient leaching.';
   } else {
     status = 'optimal';
     insightIcon = 'check_circle';
-    insightColor = 'text-primary';
+    insightColor = 'text-emerald-700';
     insightText = appliedIrrigationMm === 0 && baseState.rain24h > 10
-      ? 'Optimal range. Forecast rain offsets crop demand without unnecessary water application.'
-      : 'Optimal range. This application offsets daily evapotranspirative demand effectively.';
+      ? 'Optimal range. Forecast rain naturally offsets crop water demand.'
+      : 'Optimal range. Water application replenishes root zone without waste.';
   }
 
   return {

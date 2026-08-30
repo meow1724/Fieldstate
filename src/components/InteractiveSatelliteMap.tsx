@@ -1,6 +1,5 @@
 import React, { useEffect, useRef } from 'react';
 import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
 
 interface InteractiveSatelliteMapProps {
   latitude: number;
@@ -24,18 +23,16 @@ export const InteractiveSatelliteMap: React.FC<InteractiveSatelliteMapProps> = (
   const markerRef = useRef<L.Marker | null>(null);
   const polygonRef = useRef<L.Polygon | null>(null);
 
-  // Calculate polygon delta based on actual field area (1 ha = 10,000 m^2)
-  // 1 degree latitude ~ 111,000 meters
+  // 1 ha = 10,000 m^2. Calculate polygon boundaries around latitude/longitude
   const getPolygonCoords = (lat: number, lon: number, hectares: number): [number, number][] => {
     const sideMeters = Math.sqrt(Math.max(0.1, hectares) * 10000);
     const deltaLat = (sideMeters / 111000) / 2;
     const deltaLon = (sideMeters / (111000 * Math.cos((lat * Math.PI) / 180))) / 2;
-
     return [
       [lat + deltaLat, lon - deltaLon],
-      [lat + deltaLat * 1.05, lon + deltaLon],
-      [lat - deltaLat * 0.95, lon + deltaLon * 1.08],
-      [lat - deltaLat, lon - deltaLon * 0.92],
+      [lat + deltaLat * 1.04, lon + deltaLon],
+      [lat - deltaLat * 0.96, lon + deltaLon * 1.05],
+      [lat - deltaLat, lon - deltaLon * 0.94],
     ];
   };
 
@@ -43,7 +40,6 @@ export const InteractiveSatelliteMap: React.FC<InteractiveSatelliteMapProps> = (
     if (!mapContainerRef.current) return;
 
     if (!mapInstanceRef.current) {
-      // Create map
       const map = L.map(mapContainerRef.current, {
         center: [latitude, longitude],
         zoom: 15,
@@ -51,7 +47,7 @@ export const InteractiveSatelliteMap: React.FC<InteractiveSatelliteMapProps> = (
         attributionControl: false,
       });
 
-      // Add ESRI World Imagery Satellite Layer (Live real-time satellite tiles)
+      // Real Satellite Imagery from ESRI ArcGIS
       L.tileLayer(
         'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
         {
@@ -60,28 +56,28 @@ export const InteractiveSatelliteMap: React.FC<InteractiveSatelliteMapProps> = (
         }
       ).addTo(map);
 
-      // Custom Pin Icon
+      // Custom Marker Pin
       const customIcon = L.divIcon({
         className: 'custom-map-pin',
         html: `
           <div style="
-            background-color: #012d1d;
-            color: #ffffff;
-            width: 38px;
-            height: 38px;
+            background-color: #1e3a29;
+            color: #e6a833;
+            width: 36px;
+            height: 36px;
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            border: 3px solid #ffffff;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.45);
+            border: 2.5px solid #ffffff;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
             transform: translate(-50%, -50%);
           ">
-            <span style="font-family: 'Material Symbols Outlined'; font-size: 22px;">agriculture</span>
+            <span style="font-family: 'Material Symbols Outlined'; font-size: 20px;">agriculture</span>
           </div>
         `,
-        iconSize: [38, 38],
-        iconAnchor: [19, 19],
+        iconSize: [36, 36],
+        iconAnchor: [18, 18],
       });
 
       const marker = L.marker([latitude, longitude], {
@@ -89,29 +85,27 @@ export const InteractiveSatelliteMap: React.FC<InteractiveSatelliteMapProps> = (
         draggable: true,
       }).addTo(map);
 
-      marker.bindPopup(`<b>${locationName || 'Field Parcel'}</b><br>Size: ${areaHectares} ha<br>Lat: ${latitude.toFixed(4)}, Lon: ${longitude.toFixed(4)}`);
+      marker.bindPopup(`<b>${locationName || 'Field Parcel'}</b><br>Area: ${areaHectares} ha<br>Lat: ${latitude.toFixed(4)}, Lon: ${longitude.toFixed(4)}`);
 
       marker.on('dragend', (e) => {
         const newPos = e.target.getLatLng();
         onCoordinatesChanged(Number(newPos.lat.toFixed(4)), Number(newPos.lng.toFixed(4)));
       });
 
-      // Click on map to place pin & recalculate
       map.on('click', (e) => {
         const { lat, lng } = e.latlng;
         marker.setLatLng([lat, lng]);
-        marker.setPopupContent(`<b>Selected Field Pin</b><br>Size: ${areaHectares} ha<br>Lat: ${lat.toFixed(4)}, Lon: ${lng.toFixed(4)}`);
+        marker.setPopupContent(`<b>Selected Parcel</b><br>Area: ${areaHectares} ha<br>Lat: ${lat.toFixed(4)}, Lon: ${lng.toFixed(4)}`);
         onCoordinatesChanged(Number(lat.toFixed(4)), Number(lng.toFixed(4)));
       });
 
-      // Dynamic parcel polygon with area scaling
       const polygonCoords = getPolygonCoords(latitude, longitude, areaHectares);
       const polygon = L.polygon(polygonCoords, {
-        color: '#012d1d',
-        fillColor: '#c1ecd4',
-        fillOpacity: 0.4,
+        color: '#e6a833',
+        fillColor: '#22c55e',
+        fillOpacity: 0.35,
         weight: 2.5,
-        dashArray: '6, 4',
+        dashArray: '5, 5',
       }).addTo(map);
 
       mapInstanceRef.current = map;
@@ -120,12 +114,10 @@ export const InteractiveSatelliteMap: React.FC<InteractiveSatelliteMapProps> = (
     } else {
       const map = mapInstanceRef.current;
       map.setView([latitude, longitude], map.getZoom());
-
       if (markerRef.current) {
         markerRef.current.setLatLng([latitude, longitude]);
-        markerRef.current.setPopupContent(`<b>${locationName || 'Field Parcel'}</b><br>Size: ${areaHectares} ha<br>Lat: ${latitude.toFixed(4)}, Lon: ${longitude.toFixed(4)}`);
+        markerRef.current.setPopupContent(`<b>${locationName || 'Field Parcel'}</b><br>Area: ${areaHectares} ha<br>Lat: ${latitude.toFixed(4)}, Lon: ${longitude.toFixed(4)}`);
       }
-
       if (polygonRef.current) {
         const updatedCoords = getPolygonCoords(latitude, longitude, areaHectares);
         polygonRef.current.setLatLngs(updatedCoords);
@@ -134,25 +126,23 @@ export const InteractiveSatelliteMap: React.FC<InteractiveSatelliteMapProps> = (
   }, [latitude, longitude, locationName, areaHectares]);
 
   return (
-    <div className="flex flex-col gap-2">
-      {/* Field Size Scaler Toolbar */}
-      <div className="bg-[#f3f4f3] p-3 rounded-xl border border-[#c1c8c2]/50 flex flex-wrap items-center justify-between gap-3 text-[13px]">
+    <div className="flex flex-col gap-2.5">
+      {/* Area & Coordinate Controls */}
+      <div className="bg-[#f8fafc] p-3 rounded-xl border border-[#cbd5e1] flex flex-wrap items-center justify-between gap-2.5 text-[12px]">
         <div className="flex items-center gap-2">
-          <span className="material-symbols-outlined text-[#012d1d] text-[20px]">crop_free</span>
-          <span className="font-bold text-[#191c1c]">Field Boundary Area:</span>
-          <span className="bg-white px-2.5 py-0.5 rounded-md font-mono font-bold text-[#012d1d] border border-[#c1c8c2]/40">
-            {areaHectares} ha ({Math.round(areaHectares * 2.47105)} acres)
+          <span className="material-symbols-outlined text-[#1e3a29] text-[18px]">crop_free</span>
+          <span className="font-bold text-[#1e293b]">Field Parcel Area:</span>
+          <span className="bg-white px-2 py-0.5 rounded font-mono font-bold text-[#1e3a29] border border-[#cbd5e1]">
+            {areaHectares} ha ({(areaHectares * 2.471).toFixed(1)} acres)
           </span>
         </div>
-
         {onAreaChanged && (
           <div className="flex items-center gap-2">
-            <span className="text-[11px] text-[#717973] uppercase font-semibold">Resize:</span>
+            <span className="text-[11px] text-[#64748b] uppercase font-semibold">Scale:</span>
             <button
               type="button"
               onClick={() => onAreaChanged(Math.max(0.2, Number((areaHectares - 0.5).toFixed(1))))}
-              className="w-7 h-7 bg-white hover:bg-[#e7e8e7] text-[#191c1c] font-bold rounded-lg border border-[#c1c8c2] flex items-center justify-center cursor-pointer shadow-xs"
-              title="Decrease field size"
+              className="w-6 h-6 bg-white hover:bg-[#e2e8f0] text-[#1e293b] font-bold rounded border border-[#cbd5e1] flex items-center justify-center cursor-pointer shadow-xs"
             >
               -
             </button>
@@ -163,13 +153,12 @@ export const InteractiveSatelliteMap: React.FC<InteractiveSatelliteMapProps> = (
               step="0.5"
               value={areaHectares}
               onChange={(e) => onAreaChanged(parseFloat(e.target.value))}
-              className="w-24 sm:w-36 accent-[#012d1d] cursor-pointer"
+              className="w-24 sm:w-32 accent-[#1e3a29] cursor-pointer"
             />
             <button
               type="button"
               onClick={() => onAreaChanged(Number((areaHectares + 0.5).toFixed(1)))}
-              className="w-7 h-7 bg-white hover:bg-[#e7e8e7] text-[#191c1c] font-bold rounded-lg border border-[#c1c8c2] flex items-center justify-center cursor-pointer shadow-xs"
-              title="Increase field size"
+              className="w-6 h-6 bg-white hover:bg-[#e2e8f0] text-[#1e293b] font-bold rounded border border-[#cbd5e1] flex items-center justify-center cursor-pointer shadow-xs"
             >
               +
             </button>
@@ -177,22 +166,20 @@ export const InteractiveSatelliteMap: React.FC<InteractiveSatelliteMapProps> = (
         )}
       </div>
 
-      {/* Map Canvas */}
-      <div className="relative w-full h-72 sm:h-80 rounded-2xl overflow-hidden border border-[#c1c8c2] shadow-inner">
+      {/* Map View */}
+      <div className="relative w-full h-72 sm:h-80 rounded-2xl overflow-hidden border border-[#cbd5e1] shadow-inner">
         <div ref={mapContainerRef} className="w-full h-full z-10" />
 
-        {/* Control Overlay Hint */}
-        <div className="absolute top-3 right-3 z-20 bg-white/90 backdrop-blur-md px-3 py-1.5 rounded-lg text-[11px] font-semibold text-[#012d1d] shadow-sm flex items-center gap-1.5 border border-[#c1c8c2]/50 pointer-events-none">
-          <span className="material-symbols-outlined text-[16px]">touch_app</span>
-          <span>Click anywhere or drag pin to move parcel</span>
+        {/* Map Overlay Badge */}
+        <div className="absolute top-3 right-3 z-20 bg-white/90 backdrop-blur-md px-2.5 py-1 rounded-lg text-[11px] font-bold text-[#1e3a29] shadow-sm flex items-center gap-1.5 border border-[#cbd5e1] pointer-events-none">
+          <span className="material-symbols-outlined text-[15px]">touch_app</span>
+          <span>Click anywhere or drag pin to relocate</span>
         </div>
 
-        {/* Live Satellite Pill */}
-        <div className="absolute bottom-3 left-3 z-20 bg-white/95 backdrop-blur-md px-3 py-1.5 rounded-lg text-[11px] font-medium text-[#191c1c] shadow-sm flex items-center gap-2 border border-[#c1c8c2]/50 pointer-events-none">
-          <span className="material-symbols-outlined text-[16px] text-[#012d1d]">satellite_alt</span>
-          <span>
-            ESRI Live Satellite • {latitude.toFixed(4)}° N, {longitude.toFixed(4)}° W ({areaHectares} ha)
-          </span>
+        {/* Satellite Indicator */}
+        <div className="absolute bottom-3 left-3 z-20 bg-black/75 backdrop-blur-md px-3 py-1.5 rounded-lg text-[11px] font-medium text-white shadow-md flex items-center gap-2 pointer-events-none">
+          <span className="material-symbols-outlined text-[15px] text-[#e6a833]">satellite_alt</span>
+          <span>ESRI World Imagery · Lat {latitude.toFixed(4)}°, Lon {longitude.toFixed(4)}°</span>
         </div>
       </div>
     </div>

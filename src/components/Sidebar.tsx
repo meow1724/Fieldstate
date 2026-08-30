@@ -8,6 +8,7 @@ interface SidebarProps {
   currentFarm: FarmProfile;
   farms: Record<string, any>;
   onSelectFarm: (farmId: string) => void;
+  onSelectJudgeScenario: (scenarioKey: string) => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -17,40 +18,51 @@ export const Sidebar: React.FC<SidebarProps> = ({
   currentFarm,
   farms,
   onSelectFarm,
+  onSelectJudgeScenario,
 }) => {
   const navItems = [
-    { id: 'today', label: "Today's Actions", icon: 'assignment_turned_in' },
-    { id: 'crop-health', label: 'Crop Health', icon: 'potted_plant' },
+    { id: 'today', label: "Today's Decision", icon: 'task_alt', badge: '1 Action' },
+    { id: 'economics', label: 'ROI & Carbon Savings', icon: 'savings', badge: 'New' },
+    { id: 'crop-health', label: 'Crop Health (NDVI)', icon: 'satellite_alt' },
     { id: 'water', label: 'Water Management', icon: 'water_drop' },
     { id: 'weather', label: 'Weather Forecast', icon: 'cloud_sync' },
-    { id: 'setup', label: 'Farm Setup', icon: 'settings' },
+    { id: 'pitch', label: 'Pitch & Science Ledger', icon: 'auto_stories' },
+    { id: 'setup', label: 'Farm Configuration', icon: 'settings' },
   ];
 
   return (
-    <nav className="hidden lg:flex flex-col h-screen p-6 gap-2 border-r border-[#c1c8c2] bg-[#f3f4f3] w-64 shrink-0 fixed left-0 top-0 z-40 overflow-y-auto custom-scrollbar">
+    <nav className="hidden lg:flex flex-col h-screen p-5 gap-2 border-r border-[#2d4436] bg-[#101b13] text-[#e2ece5] w-64 shrink-0 fixed left-0 top-0 z-40 overflow-y-auto custom-scrollbar shadow-2xl">
       {/* Brand Header */}
-      <div className="mb-6">
-        <div className="flex items-center gap-3 mb-2">
-          <div className="w-10 h-10 rounded-full bg-[#012d1d] flex items-center justify-center text-white shadow-sm">
+      <div className="mb-4">
+        <div className="flex items-center gap-3 mb-1">
+          <div className="w-10 h-10 rounded-xl bg-[#234e35] border border-[#3b7352] flex items-center justify-center text-[#e6a833] shadow-md">
             <span className="material-symbols-outlined icon-fill text-2xl">eco</span>
           </div>
           <div>
-            <h1 className="text-[24px] font-bold text-[#012d1d] leading-tight tracking-tight">AgriPulse</h1>
-            <p className="text-[12px] text-[#414844] tracking-wider uppercase font-medium">Precision Agriculture</p>
+            <h1 className="text-[22px] font-extrabold text-white leading-tight tracking-tight flex items-center gap-1.5">
+              <span>Fieldstate</span>
+            </h1>
+            <p className="text-[11px] text-[#86a894] tracking-wider uppercase font-semibold">One Decision for Irrigation</p>
           </div>
         </div>
 
+        {/* Hackathon Track Tag */}
+        <div className="mt-3 py-1 px-2.5 rounded-lg bg-[#192f22] border border-[#2d523b] flex items-center justify-between text-[11px]">
+          <span className="text-[#a5d0b9] font-medium">Earth Forward 2026</span>
+          <span className="bg-[#e6a833] text-[#141e17] px-1.5 py-0.2 rounded font-bold text-[10px]">Hackathon</span>
+        </div>
+
         {/* Quick Farm Selector */}
-        <div className="mt-4 pt-3 border-t border-[#c1c8c2]/50">
-          <label className="text-[11px] font-medium text-[#414844] uppercase tracking-wider block mb-1.5 flex items-center justify-between">
-            <span>Active Field</span>
-            <span className="text-[10px] bg-[#e1e3e2] px-1.5 py-0.5 rounded text-[#012d1d] font-semibold">Live</span>
+        <div className="mt-3 pt-3 border-t border-[#233b2c]">
+          <label className="text-[11px] font-bold text-[#86a894] uppercase tracking-wider block mb-1.5 flex items-center justify-between">
+            <span>Active Parcel</span>
+            <span className="text-[10px] bg-[#234e35] text-[#c1ecd4] px-1.5 py-0.5 rounded font-mono font-semibold">Live GPS</span>
           </label>
           <div className="relative">
             <select
               value={currentFarm.id}
               onChange={(e) => onSelectFarm(e.target.value)}
-              className="w-full text-[13px] font-medium bg-white text-[#191c1c] border border-[#c1c8c2] rounded-lg py-2 pl-2.5 pr-7 focus:outline-none focus:border-[#012d1d] focus:ring-1 focus:ring-[#012d1d] appearance-none cursor-pointer shadow-xs transition-colors"
+              className="w-full text-[13px] font-medium bg-[#192a1e] text-white border border-[#2e4d3a] rounded-lg py-2 pl-2.5 pr-7 focus:outline-none focus:border-[#4ade80] appearance-none cursor-pointer shadow-xs transition-colors"
             >
               {Object.values(farms).map((item: any) => (
                 <option key={item.farm.id} value={item.farm.id}>
@@ -58,7 +70,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 </option>
               ))}
             </select>
-            <span className="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-[#414844] text-[18px]">
+            <span className="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-[#86a894] text-[18px]">
               unfold_more
             </span>
           </div>
@@ -68,10 +80,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {/* CTA Button */}
       <button
         onClick={onNewSurvey}
-        className="w-full bg-[#012d1d] hover:bg-[#1b4332] text-white rounded-lg py-3 px-4 flex items-center justify-center gap-2 text-[14px] font-semibold shadow-sm hover:shadow-md transition-all mb-4 cursor-pointer active:scale-[0.99]"
+        className="w-full bg-[#e6a833] hover:bg-[#d49624] text-[#101b13] rounded-xl py-2.5 px-3.5 flex items-center justify-center gap-2 text-[13px] font-bold shadow-md hover:shadow-lg transition-all mb-3 cursor-pointer active:scale-[0.98]"
       >
-        <span className="material-symbols-outlined text-[20px]">add</span>
-        <span>New Field Survey</span>
+        <span className="material-symbols-outlined text-[18px]">add_location_alt</span>
+        <span>Log Field Scout Survey</span>
       </button>
 
       {/* Main Navigation Items */}
@@ -82,54 +94,85 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <button
               key={item.id}
               onClick={() => onTabChange(item.id)}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all duration-200 cursor-pointer ${
+              className={`flex items-center justify-between px-3 py-2 rounded-xl text-left transition-all duration-150 cursor-pointer ${
                 isActive
-                  ? 'bg-[#1b4332] text-white font-bold shadow-xs translate-x-0.5'
-                  : 'text-[#414844] hover:bg-[#e7e8e7] hover:text-[#191c1c] font-medium'
+                  ? 'bg-[#234e35] text-white font-bold shadow-inner border border-[#3f7a57]'
+                  : 'text-[#a5b8ac] hover:bg-[#192b1f] hover:text-white font-medium'
               }`}
             >
-              <span
-                className={`material-symbols-outlined text-[22px] ${
-                  isActive ? 'icon-fill text-[#c1ecd4]' : 'text-[#414844]'
-                }`}
-              >
-                {item.icon}
-              </span>
-              <span className="text-[14px]">{item.label}</span>
+              <div className="flex items-center gap-2.5">
+                <span
+                  className={`material-symbols-outlined text-[20px] ${
+                    isActive ? 'icon-fill text-[#e6a833]' : 'text-[#86a894]'
+                  }`}
+                >
+                  {item.icon}
+                </span>
+                <span className="text-[13px]">{item.label}</span>
+              </div>
+              {item.badge && (
+                <span
+                  className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${
+                    isActive ? 'bg-[#e6a833] text-[#141e17]' : 'bg-[#192b1f] text-[#a5d0b9] border border-[#2d523b]'
+                  }`}
+                >
+                  {item.badge}
+                </span>
+              )}
             </button>
           );
         })}
       </div>
 
-      {/* Footer Navigation */}
-      <div className="mt-auto pt-4 border-t border-[#c1c8c2] flex flex-col gap-1">
-        <button
-          onClick={() => onTabChange('support')}
-          className="flex items-center gap-3 px-3 py-2 rounded-lg text-[#414844] hover:bg-[#e7e8e7] text-[14px] font-medium transition-colors text-left"
-        >
-          <span className="material-symbols-outlined text-[20px]">help</span>
-          <span>Support & FAQ</span>
-        </button>
-        <button
-          onClick={() => onTabChange('setup')}
-          className="flex items-center gap-3 px-3 py-2 rounded-lg text-[#414844] hover:bg-[#e7e8e7] text-[14px] font-medium transition-colors text-left"
-        >
-          <span className="material-symbols-outlined text-[20px]">settings</span>
-          <span>Settings</span>
-        </button>
+      {/* Quick Judge Pitch Scenarios Drawer */}
+      <div className="pt-3 pb-2 border-t border-[#233b2c] flex flex-col gap-1.5">
+        <span className="text-[10px] font-bold text-[#86a894] uppercase tracking-wider px-1 flex items-center gap-1">
+          <span className="material-symbols-outlined text-[13px] text-[#e6a833]">gavel</span>
+          <span>Judge Demo Scenarios</span>
+        </span>
+        <div className="grid grid-cols-3 gap-1">
+          <button
+            onClick={() => onSelectJudgeScenario('north-plot-rice')}
+            title="Scenario A: 31mm Rain -> WAIT decision"
+            className="text-[10px] bg-[#192a1e] hover:bg-[#234e35] text-[#93c5fd] hover:text-white border border-[#284936] py-1.5 px-1 rounded-lg text-center font-semibold transition-colors cursor-pointer"
+          >
+            1. Rain (WAIT)
+          </button>
+          <button
+            onClick={() => onSelectJudgeScenario('sector-7-wheat')}
+            title="Scenario B: Dry Deficit -> IRRIGATE decision"
+            className="text-[10px] bg-[#192a1e] hover:bg-[#234e35] text-[#fca5a5] hover:text-white border border-[#284936] py-1.5 px-1 rounded-lg text-center font-semibold transition-colors cursor-pointer"
+          >
+            2. Deficit (IRRIGATE)
+          </button>
+          <button
+            onClick={() => onSelectJudgeScenario('east-basin-corn')}
+            title="Scenario C: NDVI Anomaly -> INSPECT decision"
+            className="text-[10px] bg-[#192a1e] hover:bg-[#234e35] text-[#fde047] hover:text-white border border-[#284936] py-1.5 px-1 rounded-lg text-center font-semibold transition-colors cursor-pointer"
+          >
+            3. Vigor (INSPECT)
+          </button>
+        </div>
+      </div>
 
-        {/* User Profile */}
-        <div className="mt-3 pt-3 border-t border-[#c1c8c2]/40 flex items-center gap-3 px-2 py-1">
-          <img
-            alt="Farm Manager Profile"
-            src="https://lh3.googleusercontent.com/aida-public/AB6AXuDd2H1b3jUS3XxT9bJ0yL6stcHciyK0rhZmP6iW1wt9oAeVK4Ci3y9942WkqrKDLxtNaieO5whvMx53KfgzW58w-vt2srT8YZ828-TL1QmF8qkubswpuvkEXgSqU55J1ZIEtkpkXA4INCz2Zu_ea48KnF4Rk1VpkLKn61BLSjvskcvE8xJElxUg3yEi2KoSZiWybYn0c8rEbnSnLWaGLz7dmnxOKXbTzZdA0E4HI7Gj_xCbbsRiBlH0"
-            className="w-10 h-10 rounded-full object-cover border-2 border-[#1b4332]"
-          />
+      {/* Footer Profile */}
+      <div className="mt-auto pt-3 border-t border-[#233b2c] flex items-center justify-between px-1">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-full bg-[#234e35] border border-[#4ade80] flex items-center justify-center text-white font-bold text-xs">
+            FS
+          </div>
           <div className="flex flex-col min-w-0">
-            <span className="text-[14px] font-semibold text-[#191c1c] truncate">J. Doe</span>
-            <span className="text-[12px] text-[#414844] truncate">Farm Manager</span>
+            <span className="text-[12px] font-semibold text-white truncate">Field Manager</span>
+            <span className="text-[10px] text-[#86a894] truncate">Agronomic Pilot Mode</span>
           </div>
         </div>
+        <button
+          onClick={() => onTabChange('setup')}
+          className="text-[#86a894] hover:text-white p-1 rounded hover:bg-[#192b1f]"
+          title="Settings"
+        >
+          <span className="material-symbols-outlined text-[18px]">settings</span>
+        </button>
       </div>
     </nav>
   );

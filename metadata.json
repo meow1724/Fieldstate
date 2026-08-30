@@ -1,6 +1,6 @@
 {
-  "name": "AgriPulse - Precision Agriculture",
-  "description": "Climate-aware farm decision engine combining weather forecasts, satellite NDVI vegetation signals, and agronomic evapotranspiration models for precision irrigation and crop management.",
+  "name": "Fieldstate - Precision Irrigation Decision Engine",
+  "description": "A precision irrigation decision engine combining weather forecasts, Sentinel-2 NDVI satellite observation, and FAO-56 crop science into one same-day action with farm economics ROI.",
   "requestFramePermissions": ["camera", "geolocation"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

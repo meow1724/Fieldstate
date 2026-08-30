@@ -24,13 +24,15 @@ export const FarmSetup: React.FC<FarmSetupProps> = ({
   const [irrigationMethod, setIrrigationMethod] = useState<IrrigationMethod>(currentFarm.irrigationMethod);
   const [latitude, setLatitude] = useState(currentFarm.latitude);
   const [longitude, setLongitude] = useState(currentFarm.longitude);
-  const [hardinessZone, setHardinessZone] = useState(currentFarm.hardinessZone || 'Hardiness 9b');
-  const [locationName, setLocationName] = useState(currentFarm.locationName || 'California Central Valley');
+  const [hardinessZone, setHardinessZone] = useState(currentFarm.hardinessZone || 'Zone 10a');
+  const [locationName, setLocationName] = useState(currentFarm.locationName || 'Assam Brahmaputra Valley');
+  const [pumpType, setPumpType] = useState<'diesel' | 'electric_grid' | 'solar'>(currentFarm.pumpType || 'diesel');
+  const [energyTariff, setEnergyTariff] = useState(currentFarm.energyTariffPerKwh || 0.18);
+  const [pumpingHead, setPumpingHead] = useState(currentFarm.pumpingHeadMeters || 30);
 
   const [livePreviewWeather, setLivePreviewWeather] = useState<LiveWeatherData | null>(null);
   const [isLoadingWeather, setIsLoadingWeather] = useState(false);
 
-  // Fetch live weather preview whenever coordinates change
   useEffect(() => {
     let isMounted = true;
     setIsLoadingWeather(true);
@@ -42,10 +44,9 @@ export const FarmSetup: React.FC<FarmSetupProps> = ({
         }
       })
       .catch((err) => {
-        console.error('Error fetching live weather preview:', err);
+        console.error('Error loading weather preview:', err);
         if (isMounted) setIsLoadingWeather(false);
       });
-
     return () => {
       isMounted = false;
     };
@@ -60,7 +61,7 @@ export const FarmSetup: React.FC<FarmSetupProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const cropConfig = CROP_DATABASE[crop] || CROP_DATABASE.corn;
+    const cropConfig = CROP_DATABASE[crop] || CROP_DATABASE.rice;
     const updated: FarmProfile = {
       ...currentFarm,
       name,
@@ -74,18 +75,27 @@ export const FarmSetup: React.FC<FarmSetupProps> = ({
       longitude: Number(longitude),
       locationName,
       hardinessZone,
+      pumpType,
+      energyTariffPerKwh: Number(energyTariff) || 0.16,
+      pumpingHeadMeters: Number(pumpingHead) || 30,
     };
     onSaveFarm(updated);
   };
 
   return (
-    <div className="flex-1 max-w-[1400px] mx-auto w-full">
+    <div className="flex-1 max-w-[1380px] mx-auto w-full">
       {/* Page Header */}
-      <div className="mb-8">
-        <h2 className="text-[36px] md:text-[48px] font-bold text-[#191c1c] tracking-tight leading-tight">
-          Farm Profile Setup
+      <div className="mb-6">
+        <div className="flex items-center gap-2 mb-1.5">
+          <span className="bg-[#1e3a29] text-[#e6a833] text-[11px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-md">
+            Field Configuration
+          </span>
+          <span className="text-[12px] text-[#64748b]">Real-world GPS coordinates and pumping profile</span>
+        </div>
+        <h2 className="text-[32px] md:text-[42px] font-extrabold text-[#0f172a] tracking-tight leading-tight">
+          Farm & Economic Profile Setup
         </h2>
-        <p className="text-[18px] text-[#414844] mt-1">
+        <p className="text-[15px] text-[#475569] mt-0.5">
           Select real field coordinates worldwide to fetch live meteorological data, FAO-56 evapotranspiration models, and satellite signals.
         </p>
       </div>
@@ -93,35 +103,29 @@ export const FarmSetup: React.FC<FarmSetupProps> = ({
       <form onSubmit={handleSubmit} className="flex flex-col gap-6">
         {/* Bento Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* Basic Information Card (Spans 6 cols) */}
-          <div className="lg:col-span-6 bg-white rounded-2xl p-6 md:p-8 shadow-[0_4px_12px_rgba(0,0,0,0.05)] border border-[#c1c8c2]/30 flex flex-col justify-between">
+          {/* Basic Info (Spans 6 cols) */}
+          <div className="lg:col-span-6 bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-[#cbd5e1] flex flex-col justify-between">
             <div>
-              <div className="flex items-center gap-2 mb-6">
-                <span className="material-symbols-outlined text-[#012d1d] text-[24px]">badge</span>
-                <h3 className="text-[20px] font-bold text-[#191c1c]">Basic Information</h3>
+              <div className="flex items-center gap-2 mb-5">
+                <span className="material-symbols-outlined text-[#1e3a29] text-[24px]">badge</span>
+                <h3 className="text-[19px] font-extrabold text-[#0f172a]">Basic Farm Facts</h3>
               </div>
 
-              <div className="flex flex-col gap-4">
-                {/* Farm Name */}
+              <div className="flex flex-col gap-4 text-[13px]">
                 <div>
-                  <label className="block text-[13px] font-semibold text-[#191c1c] mb-1.5">
-                    Farm or Field Name
-                  </label>
+                  <label className="block font-bold text-[#0f172a] mb-1.5">Farm or Field Name</label>
                   <input
                     type="text"
                     required
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    placeholder="e.g. Zone 4: North Field Corn"
-                    className="w-full bg-[#f9f9f8] border border-[#c1c8c2] rounded-lg px-4 py-2.5 text-[14px] text-[#191c1c] focus:outline-none focus:border-[#012d1d] focus:ring-1 focus:ring-[#012d1d]"
+                    placeholder="e.g. North Plot — Rice (Paddy)"
+                    className="w-full bg-[#f8fafc] border border-[#cbd5e1] rounded-xl px-4 py-2.5 text-[#0f172a] focus:outline-none focus:border-[#1e3a29]"
                   />
                 </div>
 
-                {/* Total Area */}
                 <div>
-                  <label className="block text-[13px] font-semibold text-[#191c1c] mb-1.5">
-                    Total Area (Hectares)
-                  </label>
+                  <label className="block font-bold text-[#0f172a] mb-1.5">Total Area (Hectares)</label>
                   <div className="relative">
                     <input
                       type="number"
@@ -130,80 +134,58 @@ export const FarmSetup: React.FC<FarmSetupProps> = ({
                       required
                       value={areaHectares}
                       onChange={(e) => setAreaHectares(parseFloat(e.target.value))}
-                      className="w-full bg-[#f9f9f8] border border-[#c1c8c2] rounded-lg px-4 py-2.5 text-[14px] text-[#191c1c] focus:outline-none focus:border-[#012d1d] focus:ring-1 focus:ring-[#012d1d]"
+                      className="w-full bg-[#f8fafc] border border-[#cbd5e1] rounded-xl px-4 py-2.5 text-[#0f172a] focus:outline-none focus:border-[#1e3a29]"
                     />
-                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[13px] text-[#717973] font-medium pointer-events-none">
-                      ha
-                    </span>
+                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[#64748b] font-medium">ha</span>
                   </div>
                 </div>
 
-                {/* Primary Crop Focus */}
                 <div>
-                  <label className="block text-[13px] font-semibold text-[#191c1c] mb-1.5">
-                    Primary Crop Focus
-                  </label>
-                  <div className="relative">
-                    <select
-                      value={crop}
-                      onChange={(e) => setCrop(e.target.value)}
-                      className="w-full bg-[#f9f9f8] border border-[#c1c8c2] rounded-lg px-4 py-2.5 text-[14px] text-[#191c1c] appearance-none focus:outline-none focus:border-[#012d1d] focus:ring-1 focus:ring-[#012d1d] cursor-pointer"
-                    >
-                      {Object.entries(CROP_DATABASE).map(([key, config]) => (
-                        <option key={key} value={key}>
-                          {config.displayName} ({config.totalCycleDays} days cycle)
-                        </option>
-                      ))}
-                    </select>
-                    <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-[#717973] text-[20px]">
-                      arrow_drop_down
-                    </span>
-                  </div>
+                  <label className="block font-bold text-[#0f172a] mb-1.5">Primary Crop Variety</label>
+                  <select
+                    value={crop}
+                    onChange={(e) => setCrop(e.target.value)}
+                    className="w-full bg-[#f8fafc] border border-[#cbd5e1] rounded-xl px-4 py-2.5 text-[#0f172a] focus:outline-none focus:border-[#1e3a29]"
+                  >
+                    {Object.entries(CROP_DATABASE).map(([key, config]) => (
+                      <option key={key} value={key}>
+                        {config.displayName} ({config.totalCycleDays} days cycle)
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
-                {/* Sowing / Planting Date */}
                 <div>
-                  <label className="block text-[13px] font-semibold text-[#191c1c] mb-1.5">
-                    Sowing / Planting Date
-                  </label>
+                  <label className="block font-bold text-[#0f172a] mb-1.5">Sowing / Planting Date</label>
                   <input
                     type="date"
                     required
                     value={plantingDate}
                     onChange={(e) => setPlantingDate(e.target.value)}
-                    className="w-full bg-[#f9f9f8] border border-[#c1c8c2] rounded-lg px-4 py-2.5 text-[14px] text-[#191c1c] focus:outline-none focus:border-[#012d1d] focus:ring-1 focus:ring-[#012d1d]"
+                    className="w-full bg-[#f8fafc] border border-[#cbd5e1] rounded-xl px-4 py-2.5 text-[#0f172a] focus:outline-none focus:border-[#1e3a29]"
                   />
-                  <p className="text-[11px] text-[#717973] mt-1">
-                    Used to accurately compute vegetative growth stages and daily FAO-56 crop coefficient ($K_c$).
-                  </p>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Location & Interactive Satellite Map Card (Spans 6 cols) */}
-          <div className="lg:col-span-6 bg-white rounded-2xl p-6 md:p-8 shadow-[0_4px_12px_rgba(0,0,0,0.05)] border border-[#c1c8c2]/30 flex flex-col justify-between gap-4">
+          {/* Location & Interactive Map (Spans 6 cols) */}
+          <div className="lg:col-span-6 bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-[#cbd5e1] flex flex-col justify-between gap-4">
             <div>
-              <div className="flex justify-between items-center mb-4">
-                <div className="flex items-center gap-2">
-                  <span className="material-symbols-outlined text-[#012d1d] text-[24px]">map</span>
-                  <h3 className="text-[20px] font-bold text-[#191c1c]">Global Location & Satellite Pin</h3>
-                </div>
+              <div className="flex items-center gap-2 mb-4">
+                <span className="material-symbols-outlined text-[#1e3a29] text-[24px]">explore</span>
+                <h3 className="text-[19px] font-extrabold text-[#0f172a]">Worldwide GPS Location</h3>
               </div>
 
-              {/* Location Picker with Search & GPS */}
-              <div className="mb-4">
-                <LocationPicker
-                  latitude={latitude}
-                  longitude={longitude}
-                  locationName={locationName}
-                  hardinessZone={hardinessZone}
-                  onLocationSelected={handleLocationPicked}
-                />
-              </div>
+              <LocationPicker
+                latitude={latitude}
+                longitude={longitude}
+                locationName={locationName}
+                hardinessZone={hardinessZone}
+                onLocationSelected={handleLocationPicked}
+              />
 
-              {/* Interactive Satellite Map with Leaflet & Real ESRI Tiles */}
-              <div className="mt-2">
+              <div className="mt-4">
                 <InteractiveSatelliteMap
                   latitude={latitude}
                   longitude={longitude}
@@ -218,229 +200,126 @@ export const FarmSetup: React.FC<FarmSetupProps> = ({
               </div>
             </div>
 
-            {/* Live API Telemetry Preview */}
-            <div className="mt-2 bg-[#f3f4f3] p-4 rounded-xl border border-[#c1c8c2]/50 flex items-center justify-between">
+            {/* Live Telemetry Preview */}
+            <div className="bg-[#f8fafc] p-3 rounded-xl border border-[#cbd5e1] flex items-center justify-between text-[12px]">
               {isLoadingWeather ? (
-                <div className="flex items-center gap-2 text-[13px] text-[#414844]">
-                  <span className="material-symbols-outlined text-[18px] animate-spin text-[#012d1d]">
-                    progress_activity
-                  </span>
-                  <span>Fetching live meteorological telemetry from Open-Meteo API...</span>
-                </div>
+                <span className="text-[#64748b] flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-[16px] animate-spin">progress_activity</span>
+                  <span>Fetching live meteorological telemetry...</span>
+                </span>
               ) : livePreviewWeather ? (
-                <div className="w-full flex flex-wrap items-center justify-between gap-3 text-[13px]">
-                  <div className="flex items-center gap-2">
-                    <span className="material-symbols-outlined text-[#012d1d] text-[20px]">cloud_sync</span>
-                    <div>
-                      <span className="font-bold text-[#191c1c]">Live API Status: Active</span>
-                      <p className="text-[11px] text-[#414844]">
-                        Temp: {livePreviewWeather.currentTemp}°C • Wind: {livePreviewWeather.currentWindSpeed} km/h • 24h Rain: {livePreviewWeather.rainForecast24h} mm
-                      </p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-[11px] font-semibold text-[#717973] uppercase block">FAO-56 ET₀ Today</span>
-                    <span className="text-[16px] font-bold text-[#012d1d]">{livePreviewWeather.referenceEt0Today} mm/day</span>
-                  </div>
-                </div>
+                <span className="text-[#1e3a29] font-bold">
+                  Live API: {livePreviewWeather.currentTemp}°C · ET₀ {livePreviewWeather.referenceEt0Today} mm/d · Rain {livePreviewWeather.rainForecast24h} mm
+                </span>
               ) : (
-                <span className="text-[13px] text-[#717973]">Enter coordinates to load live telemetry</span>
+                <span className="text-[#64748b]">Ready to sync</span>
               )}
             </div>
           </div>
 
-          {/* Environmental Specifications Card (Spans full 12 cols) */}
-          <div className="lg:col-span-12 bg-white rounded-2xl p-6 md:p-8 shadow-[0_4px_12px_rgba(0,0,0,0.05)] border border-[#c1c8c2]/30">
-            <div className="flex items-center gap-2 mb-6">
-              <span className="material-symbols-outlined text-[#012d1d] text-[24px]">nature</span>
-              <h3 className="text-[20px] font-bold text-[#191c1c]">Environmental Specifications</h3>
-            </div>
+          {/* Soil & Irrigation (Spans 6 cols) */}
+          <div className="lg:col-span-6 bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-[#cbd5e1]">
+            <h3 className="text-[18px] font-extrabold text-[#0f172a] mb-4">Soil & Irrigation Specs</h3>
 
-            {/* Soil Type Selection */}
-            <div className="mb-6">
-              <label className="block text-[14px] font-bold text-[#191c1c] mb-3">
-                Predominant Soil Type
-              </label>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {/* Sandy */}
-                <div
-                  onClick={() => setSoilType('sandy')}
-                  className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${
-                    soilType === 'sandy'
-                      ? 'border-[#012d1d] bg-[#c1ecd4]/20 shadow-xs'
-                      : 'border-[#c1c8c2]/50 bg-[#f9f9f8] hover:border-[#717973]'
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="material-symbols-outlined text-[24px] text-[#012d1d]">grain</span>
-                    <input
-                      type="radio"
-                      checked={soilType === 'sandy'}
-                      onChange={() => setSoilType('sandy')}
-                      className="accent-[#012d1d]"
-                    />
-                  </div>
-                  <h4 className="text-[15px] font-bold text-[#191c1c]">Sandy Soil</h4>
-                  <p className="text-[12px] text-[#414844] mt-1">
-                    High infiltration rate, lower available water storage capacity (80 mm/m).
-                  </p>
-                </div>
-
-                {/* Loam */}
-                <div
-                  onClick={() => setSoilType('loam')}
-                  className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${
-                    soilType === 'loam'
-                      ? 'border-[#012d1d] bg-[#c1ecd4]/20 shadow-xs'
-                      : 'border-[#c1c8c2]/50 bg-[#f9f9f8] hover:border-[#717973]'
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="material-symbols-outlined text-[24px] text-[#012d1d]">layers</span>
-                    <input
-                      type="radio"
-                      checked={soilType === 'loam'}
-                      onChange={() => setSoilType('loam')}
-                      className="accent-[#012d1d]"
-                    />
-                  </div>
-                  <h4 className="text-[15px] font-bold text-[#191c1c]">Loam Soil (Recommended)</h4>
-                  <p className="text-[12px] text-[#414844] mt-1">
-                    Balanced drainage and optimal moisture holding capacity (140 mm/m).
-                  </p>
-                </div>
-
-                {/* Clay */}
-                <div
-                  onClick={() => setSoilType('clay')}
-                  className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${
-                    soilType === 'clay'
-                      ? 'border-[#012d1d] bg-[#c1ecd4]/20 shadow-xs'
-                      : 'border-[#c1c8c2]/50 bg-[#f9f9f8] hover:border-[#717973]'
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="material-symbols-outlined text-[24px] text-[#012d1d]">water</span>
-                    <input
-                      type="radio"
-                      checked={soilType === 'clay'}
-                      onChange={() => setSoilType('clay')}
-                      className="accent-[#012d1d]"
-                    />
-                  </div>
-                  <h4 className="text-[15px] font-bold text-[#191c1c]">Clay Soil</h4>
-                  <p className="text-[12px] text-[#414844] mt-1">
-                    High water retention (180 mm/m), slower infiltration and higher runoff risk.
-                  </p>
-                </div>
+            <div className="mb-4">
+              <label className="block text-[12px] font-bold text-[#334155] uppercase tracking-wider mb-2">Soil Type</label>
+              <div className="grid grid-cols-3 gap-2 text-[12px]">
+                {(['sandy', 'loam', 'clay'] as const).map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => setSoilType(s)}
+                    className={`py-2 px-3 rounded-xl font-bold border capitalize transition-all ${
+                      soilType === s
+                        ? 'bg-[#1e3a29] text-white border-[#1e3a29]'
+                        : 'bg-[#f8fafc] text-[#475569] border-[#cbd5e1]'
+                    }`}
+                  >
+                    {s}
+                  </button>
+                ))}
               </div>
             </div>
 
-            {/* Irrigation Method Selection */}
             <div>
-              <label className="block text-[14px] font-bold text-[#191c1c] mb-3">
-                Primary Irrigation Method
-              </label>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {/* Drip */}
-                <div
-                  onClick={() => setIrrigationMethod('drip')}
-                  className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${
-                    irrigationMethod === 'drip'
-                      ? 'border-[#012d1d] bg-[#c1ecd4]/20 shadow-xs'
-                      : 'border-[#c1c8c2]/50 bg-[#f9f9f8] hover:border-[#717973]'
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="material-symbols-outlined text-[24px] text-[#012d1d]">opacity</span>
-                    <input
-                      type="radio"
-                      checked={irrigationMethod === 'drip'}
-                      onChange={() => setIrrigationMethod('drip')}
-                      className="accent-[#012d1d]"
-                    />
-                  </div>
-                  <h4 className="text-[15px] font-bold text-[#191c1c]">Drip Irrigation (90% Eff.)</h4>
-                  <p className="text-[12px] text-[#414844] mt-1">
-                    Precision targeted emitter lines delivering water straight to root zone.
-                  </p>
-                </div>
-
-                {/* Sprinkler */}
-                <div
-                  onClick={() => setIrrigationMethod('sprinkler')}
-                  className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${
-                    irrigationMethod === 'sprinkler'
-                      ? 'border-[#012d1d] bg-[#c1ecd4]/20 shadow-xs'
-                      : 'border-[#c1c8c2]/50 bg-[#f9f9f8] hover:border-[#717973]'
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="material-symbols-outlined text-[24px] text-[#012d1d]">shower</span>
-                    <input
-                      type="radio"
-                      checked={irrigationMethod === 'sprinkler'}
-                      onChange={() => setIrrigationMethod('sprinkler')}
-                      className="accent-[#012d1d]"
-                    />
-                  </div>
-                  <h4 className="text-[15px] font-bold text-[#191c1c]">Sprinkler System (75% Eff.)</h4>
-                  <p className="text-[12px] text-[#414844] mt-1">
-                    Overhead distributed spray subject to moderate wind evaporation.
-                  </p>
-                </div>
-
-                {/* Flood */}
-                <div
-                  onClick={() => setIrrigationMethod('flood')}
-                  className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${
-                    irrigationMethod === 'flood'
-                      ? 'border-[#012d1d] bg-[#c1ecd4]/20 shadow-xs'
-                      : 'border-[#c1c8c2]/50 bg-[#f9f9f8] hover:border-[#717973]'
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="material-symbols-outlined text-[24px] text-[#012d1d]">tsunami</span>
-                    <input
-                      type="radio"
-                      checked={irrigationMethod === 'flood'}
-                      onChange={() => setIrrigationMethod('flood')}
-                      className="accent-[#012d1d]"
-                    />
-                  </div>
-                  <h4 className="text-[15px] font-bold text-[#191c1c]">Flood / Furrow (60% Eff.)</h4>
-                  <p className="text-[12px] text-[#414844] mt-1">
-                    Basin gravitational distribution with higher deep percolation losses.
-                  </p>
-                </div>
+              <label className="block text-[12px] font-bold text-[#334155] uppercase tracking-wider mb-2">Irrigation Method</label>
+              <div className="grid grid-cols-3 gap-2 text-[12px]">
+                {(['drip', 'sprinkler', 'flood'] as const).map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => setIrrigationMethod(m)}
+                    className={`py-2 px-3 rounded-xl font-bold border capitalize transition-all ${
+                      irrigationMethod === m
+                        ? 'bg-[#1e3a29] text-white border-[#1e3a29]'
+                        : 'bg-[#f8fafc] text-[#475569] border-[#cbd5e1]'
+                    }`}
+                  >
+                    {m}
+                  </button>
+                ))}
               </div>
             </div>
           </div>
 
-          {/* Real API Calculation Banner */}
-          <div className="lg:col-span-12 bg-[#c1ecd4]/30 border border-[#a5d0b9] rounded-xl p-4 flex items-start gap-3">
-            <span className="material-symbols-outlined text-[#002114] text-[22px] mt-0.5">cloud_sync</span>
-            <div className="text-[13px] text-[#002114]">
-              <strong>Live Synchronization Enabled:</strong> Saving this field will immediately query real global meteorological and evapotranspiration data from Open-Meteo API for these coordinates ({latitude.toFixed(4)}°, {longitude.toFixed(4)}°) and sync all calculations dynamically.
+          {/* Pumping & Economics Parameters (Spans 6 cols) */}
+          <div className="lg:col-span-6 bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-[#cbd5e1]">
+            <h3 className="text-[18px] font-extrabold text-[#0f172a] mb-4">Pumping Energy & Economic Rates</h3>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-[13px]">
+              <div>
+                <label className="block font-bold text-[#0f172a] mb-1">Pump Power Type</label>
+                <select
+                  value={pumpType}
+                  onChange={(e) => setPumpType(e.target.value as any)}
+                  className="w-full bg-[#f8fafc] border border-[#cbd5e1] rounded-xl px-3 py-2"
+                >
+                  <option value="diesel">Diesel Generator</option>
+                  <option value="electric_grid">Electric Grid</option>
+                  <option value="solar">Solar PV Pump</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-bold text-[#0f172a] mb-1">Energy Rate ($/unit)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={energyTariff}
+                  onChange={(e) => setEnergyTariff(parseFloat(e.target.value) || 0.16)}
+                  className="w-full bg-[#f8fafc] border border-[#cbd5e1] rounded-xl px-3 py-2"
+                />
+              </div>
+
+              <div className="sm:col-span-2">
+                <label className="block font-bold text-[#0f172a] mb-1">Pumping Depth / Head (Meters)</label>
+                <input
+                  type="number"
+                  step="1"
+                  value={pumpingHead}
+                  onChange={(e) => setPumpingHead(parseInt(e.target.value) || 30)}
+                  className="w-full bg-[#f8fafc] border border-[#cbd5e1] rounded-xl px-3 py-2"
+                />
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Action Buttons */}
-        <div className="flex justify-end items-center gap-3 pt-4 border-t border-[#c1c8c2]/40">
+        {/* Submit */}
+        <div className="flex justify-end gap-3 pt-4 border-t border-[#e2e8f0]">
           <button
             type="button"
             onClick={onCancel}
-            className="px-6 py-3 border border-[#717973] text-[#191c1c] hover:bg-[#f3f4f3] rounded-lg text-[14px] font-medium transition-colors cursor-pointer"
+            className="px-6 py-2.5 border border-[#cbd5e1] text-[#475569] rounded-xl text-[13px] font-bold hover:bg-[#f8fafc]"
           >
             Cancel
           </button>
           <button
             type="submit"
-            className="px-8 py-3 bg-[#012d1d] hover:bg-[#1b4332] text-white rounded-lg text-[14px] font-bold shadow-sm transition-all cursor-pointer active:scale-98 flex items-center gap-2"
+            className="px-8 py-2.5 bg-[#1e3a29] hover:bg-[#14281c] text-white rounded-xl text-[13px] font-bold shadow-md transition-all flex items-center gap-2 cursor-pointer"
           >
-            <span className="material-symbols-outlined text-[18px]">cloud_sync</span>
-            <span>Save Field & Sync Live API</span>
+            <span className="material-symbols-outlined text-[18px]">sync</span>
+            <span>Save & Recalculate Live</span>
           </button>
         </div>
       </form>

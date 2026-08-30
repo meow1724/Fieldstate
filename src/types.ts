@@ -1,8 +1,17 @@
 export type SoilType = 'sandy' | 'loam' | 'clay';
 export type IrrigationMethod = 'drip' | 'sprinkler' | 'flood';
 export type GrowthStage = 'initial' | 'development' | 'mid-season' | 'late-season';
-export type ActionType = 'WAIT' | 'IRRIGATE' | 'INSPECT' | 'PROTECT';
+export type ActionType = 'WAIT' | 'IRRIGATE' | 'INSPECT';
 export type ConfidenceLevel = 'High' | 'Medium' | 'Low';
+export type DataProvenanceType = 'MEASURED' | 'CALCULATED' | 'PREDICTED' | 'ESTIMATED';
+
+export interface DataProvenanceTag {
+  type: DataProvenanceType;
+  label: string;
+  source: string;
+  description: string;
+  badgeColor: string;
+}
 
 export interface FarmProfile {
   id: string;
@@ -17,6 +26,10 @@ export interface FarmProfile {
   longitude: number;
   locationName: string;
   hardinessZone: string;
+  // Energy & Economic parameters
+  pumpType: 'diesel' | 'electric_grid' | 'solar';
+  energyTariffPerKwh: number; // e.g. $0.16/kWh or $3.80/gal diesel
+  pumpingHeadMeters: number; // e.g. 35 meters lift
 }
 
 export interface GrowthStageInfo {
@@ -32,10 +45,10 @@ export interface AgronomicState {
   cropAgeDays: number;
   growthStage: GrowthStage;
   growthStageName: string;
-  referenceEt0: number; // mm/day
-  cropCoefficientKc: number;
+  referenceEt0: number; // mm/day (Calculated via Penman-Monteith)
+  cropCoefficientKc: number; // Agronomic lookup
   cropEtDemand: number; // ETc = Kc * ET0 (mm/day)
-  rain24h: number; // mm
+  rain24h: number; // mm (Predicted by atmospheric models)
   rain3d: number; // mm
   effectiveRain: number; // mm
   irrigationAppliedToday: number; // mm
@@ -44,17 +57,23 @@ export interface AgronomicState {
   rootZoneDepletion: number; // mm
   availableWater: number; // mm
   waterStatus: 'optimal' | 'moderate' | 'dry' | 'stress' | 'saturated';
+  // Economic & Ecological impact of today's recommendation
+  potentialWaterSavedLitres: number;
+  potentialCostSavedDollars: number;
+  potentialCo2SavedKg: number;
+  potentialPumpingKwhSaved: number;
 }
 
 export interface NdviReading {
   date: string;
   observed: number;
   expected: number;
-  variance: number;
+  variance: number; // e.g. -0.14 = 14% below expected
   status: 'Normal' | 'Monitoring' | 'High Deviation';
-  cloudCover?: number;
+  cloudCoverPercent?: number;
   satellite?: string;
   resolution?: string;
+  isCloudGapFallback?: boolean;
 }
 
 export interface SatelliteImageMeta {
@@ -64,6 +83,7 @@ export interface SatelliteImageMeta {
   cloudCoverPercent: number;
   imageUrl: string;
   altText: string;
+  isCloudCovered: boolean;
 }
 
 export interface Recommendation {
@@ -75,11 +95,19 @@ export interface Recommendation {
   waterRecommendedMm: number;
   waterRecommendedLitres: number;
   confidence: ConfidenceLevel;
+  confidenceReason: string;
   reason: string;
   summary: string;
   detailedAnalysis: string;
   nextVerificationStep: string;
   whyChanged?: string;
+  // Provenance highlights
+  provenance: {
+    demand: DataProvenanceTag;
+    rain: DataProvenanceTag;
+    satellite: DataProvenanceTag;
+    soil: DataProvenanceTag;
+  };
 }
 
 export interface WeatherDay {
@@ -106,6 +134,13 @@ export interface FieldSurvey {
   pestSpotted: boolean;
   pestNotes?: string;
   moistureCondition: 'Dry' | 'Optimal' | 'Saturated';
-  photoUrl?: string;
   anomalyFollowup?: boolean;
+}
+
+export interface FarmEconomicsSummary {
+  seasonTotalWaterSavedM3: number;
+  seasonTotalDollarsSaved: number;
+  seasonTotalCo2SavedKg: number;
+  pumpingHoursSaved: number;
+  waterEfficiencyPercent: number;
 }

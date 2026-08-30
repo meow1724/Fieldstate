@@ -22,31 +22,26 @@ export const LocationPicker: React.FC<LocationPickerProps> = ({
   const [showDropdown, setShowDropdown] = useState(false);
   const [isLocating, setIsLocating] = useState(false);
   const [gpsError, setGpsError] = useState<string | null>(null);
-
   const debounceTimerRef = useRef<any>(null);
 
-  // Quick Agricultural Presets
   const agriculturalPresets = [
-    { name: 'California Central Valley (Fresno)', lat: 36.7468, lon: -119.7726 },
+    { name: 'Assam Brahmaputra Valley (Guwahati)', lat: 26.1445, lon: 91.7362 },
     { name: 'Kansas Wheat Belt (Salina)', lat: 38.8403, lon: -97.6114 },
-    { name: 'Assam Valley Paddy (Guwahati)', lat: 26.1445, lon: 91.7362 },
-    { name: 'Iowa Corn Belt (Des Moines)', lat: 41.5868, lon: -93.625 },
+    { name: 'California Central Valley (Fresno)', lat: 36.7468, lon: -119.7726 },
+    { name: 'Iowa Corn Basin (Des Moines)', lat: 41.5868, lon: -93.625 },
     { name: 'Po Valley Vineyard (Bologna, Italy)', lat: 44.4949, lon: 11.3426 },
-    { name: 'Mendoza Wine Region (Argentina)', lat: -32.8895, lon: -68.8458 },
+    { name: 'Mendoza Wine Valley (Argentina)', lat: -32.8895, lon: -68.8458 },
   ];
 
-  // Debounced search
   useEffect(() => {
     if (!searchQuery || searchQuery.trim().length < 2) {
       setSearchResults([]);
       setIsSearching(false);
       return;
     }
-
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current);
     }
-
     setIsSearching(true);
     debounceTimerRef.current = setTimeout(async () => {
       try {
@@ -78,10 +73,8 @@ export const LocationPicker: React.FC<LocationPickerProps> = ({
       setGpsError('Geolocation is not supported by your browser.');
       return;
     }
-
     setIsLocating(true);
     setGpsError(null);
-
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         const lat = Number(pos.coords.latitude.toFixed(4));
@@ -94,18 +87,18 @@ export const LocationPicker: React.FC<LocationPickerProps> = ({
       },
       (err) => {
         setIsLocating(false);
-        setGpsError(`Unable to retrieve GPS: ${err.message}. Select from map or search.`);
+        setGpsError(`GPS access error: ${err.message}. Please search or select from presets.`);
       },
       { timeout: 10000, enableHighAccuracy: true }
     );
   };
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-3.5">
       {/* Search Bar & Auto-locate */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 relative">
         <div className="relative flex-1">
-          <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-[#717973] text-[20px]">
+          <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-[#64748b] text-[20px]">
             search
           </span>
           <input
@@ -115,11 +108,11 @@ export const LocationPicker: React.FC<LocationPickerProps> = ({
             onFocus={() => {
               if (searchResults.length > 0) setShowDropdown(true);
             }}
-            placeholder="Search any global city, county, or agricultural basin..."
-            className="w-full bg-[#f9f9f8] border border-[#c1c8c2] rounded-xl pl-10 pr-10 py-2.5 text-[14px] text-[#191c1c] focus:outline-none focus:border-[#012d1d] focus:ring-1 focus:ring-[#012d1d] shadow-xs"
+            placeholder="Search any global farm, county, or coordinates..."
+            className="w-full bg-[#f8fafc] border border-[#cbd5e1] rounded-xl pl-10 pr-10 py-2.5 text-[13px] text-[#1e293b] focus:outline-none focus:border-[#1e3a29] focus:ring-1 focus:ring-[#1e3a29] shadow-xs font-medium"
           />
           {isSearching ? (
-            <span className="material-symbols-outlined absolute right-3.5 top-1/2 -translate-y-1/2 text-[#012d1d] text-[18px] animate-spin">
+            <span className="material-symbols-outlined absolute right-3.5 top-1/2 -translate-y-1/2 text-[#1e3a29] text-[18px] animate-spin">
               progress_activity
             </span>
           ) : searchQuery ? (
@@ -130,7 +123,7 @@ export const LocationPicker: React.FC<LocationPickerProps> = ({
                 setSearchResults([]);
                 setShowDropdown(false);
               }}
-              className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[#717973] hover:text-[#191c1c]"
+              className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[#94a3b8] hover:text-[#334155]"
             >
               <span className="material-symbols-outlined text-[18px]">close</span>
             </button>
@@ -138,25 +131,25 @@ export const LocationPicker: React.FC<LocationPickerProps> = ({
 
           {/* Autocomplete Dropdown */}
           {showDropdown && searchResults.length > 0 && (
-            <div className="absolute left-0 right-0 top-full mt-1.5 bg-white border border-[#c1c8c2] rounded-xl shadow-xl z-50 overflow-hidden max-h-60 overflow-y-auto custom-scrollbar">
+            <div className="absolute left-0 right-0 top-full mt-1.5 bg-white border border-[#cbd5e1] rounded-xl shadow-2xl z-50 overflow-hidden max-h-60 overflow-y-auto custom-scrollbar">
               {searchResults.map((res) => (
                 <button
                   key={res.id}
                   type="button"
                   onClick={() => handleSelectResult(res)}
-                  className="w-full text-left px-4 py-3 hover:bg-[#f3f4f3] flex items-center justify-between border-b border-[#c1c8c2]/20 last:border-0 transition-colors"
+                  className="w-full text-left px-4 py-3 hover:bg-[#f1f5f9] flex items-center justify-between border-b border-[#f1f5f9] last:border-0 transition-colors"
                 >
-                  <div className="flex items-center gap-2">
-                    <span className="material-symbols-outlined text-[#012d1d] text-[18px]">location_on</span>
+                  <div className="flex items-center gap-2.5">
+                    <span className="material-symbols-outlined text-[#1e3a29] text-[18px]">location_on</span>
                     <div>
-                      <p className="text-[13px] font-bold text-[#191c1c]">
+                      <p className="text-[13px] font-bold text-[#0f172a]">
                         {res.name}
                         {res.admin1 ? `, ${res.admin1}` : ''}
                       </p>
-                      <p className="text-[11px] text-[#717973]">{res.country || 'Region'}</p>
+                      <p className="text-[11px] text-[#64748b]">{res.country || 'Region'}</p>
                     </div>
                   </div>
-                  <div className="text-right text-[11px] text-[#717973] font-mono">
+                  <div className="text-right text-[11px] text-[#64748b] font-mono">
                     {res.latitude}°, {res.longitude}°
                   </div>
                 </button>
@@ -170,9 +163,9 @@ export const LocationPicker: React.FC<LocationPickerProps> = ({
           type="button"
           onClick={handleUseCurrentLocation}
           disabled={isLocating}
-          className="bg-white border border-[#c1c8c2] hover:bg-[#f3f4f3] text-[#012d1d] px-4 py-2.5 rounded-xl text-[13px] font-semibold flex items-center justify-center gap-2 shadow-xs transition-colors cursor-pointer shrink-0"
+          className="bg-white border border-[#cbd5e1] hover:bg-[#f8fafc] text-[#1e3a29] px-4 py-2.5 rounded-xl text-[12px] font-bold flex items-center justify-center gap-2 shadow-xs transition-colors cursor-pointer shrink-0"
         >
-          <span className={`material-symbols-outlined text-[18px] ${isLocating ? 'animate-spin' : ''}`}>
+          <span className={`material-symbols-outlined text-[17px] ${isLocating ? 'animate-spin' : ''}`}>
             {isLocating ? 'progress_activity' : 'my_location'}
           </span>
           <span>{isLocating ? 'Locating...' : 'Use My GPS'}</span>
@@ -180,16 +173,16 @@ export const LocationPicker: React.FC<LocationPickerProps> = ({
       </div>
 
       {gpsError && (
-        <div className="text-[12px] text-[#a03f2e] bg-[#ffdad3]/40 p-2.5 rounded-lg border border-[#fe8770]/40 flex items-center gap-2">
-          <span className="material-symbols-outlined text-[16px]">info</span>
+        <div className="text-[12px] text-[#b91c1c] bg-[#fee2e2] p-2.5 rounded-lg border border-[#fca5a5] flex items-center gap-2">
+          <span className="material-symbols-outlined text-[16px]">error</span>
           <span>{gpsError}</span>
         </div>
       )}
 
-      {/* Quick Global Agricultural Region Pills */}
+      {/* Preset Pills */}
       <div>
-        <label className="text-[11px] font-semibold text-[#717973] uppercase tracking-wider block mb-2">
-          Quick Agricultural Basins
+        <label className="text-[11px] font-bold text-[#64748b] uppercase tracking-wider block mb-1.5">
+          Agricultural Benchmark Basins
         </label>
         <div className="flex flex-wrap gap-1.5">
           {agriculturalPresets.map((preset, idx) => (
@@ -201,10 +194,10 @@ export const LocationPicker: React.FC<LocationPickerProps> = ({
                 setSearchQuery(preset.name);
                 onLocationSelected(preset.lat, preset.lon, preset.name, zone);
               }}
-              className={`text-[12px] px-3 py-1 rounded-full border transition-all cursor-pointer ${
+              className={`text-[11px] px-2.5 py-1 rounded-lg border transition-all cursor-pointer font-medium ${
                 Math.abs(latitude - preset.lat) < 0.1 && Math.abs(longitude - preset.lon) < 0.1
-                  ? 'bg-[#012d1d] text-white border-[#012d1d] font-bold shadow-xs'
-                  : 'bg-white text-[#414844] border-[#c1c8c2] hover:bg-[#f3f4f3]'
+                  ? 'bg-[#1e3a29] text-white border-[#1e3a29] font-bold shadow-xs'
+                  : 'bg-white text-[#475569] border-[#cbd5e1] hover:bg-[#f1f5f9]'
               }`}
             >
               {preset.name}
@@ -213,16 +206,16 @@ export const LocationPicker: React.FC<LocationPickerProps> = ({
         </div>
       </div>
 
-      {/* Coordinate Display & Active Zone Badge */}
-      <div className="flex flex-wrap items-center justify-between gap-3 bg-[#f3f4f3] p-3 rounded-xl border border-[#c1c8c2]/40 text-[13px]">
-        <div className="flex items-center gap-2 text-[#191c1c]">
-          <span className="material-symbols-outlined text-[#012d1d] text-[20px]">explore</span>
+      {/* Active Coordinates Display */}
+      <div className="flex flex-wrap items-center justify-between gap-2 bg-[#f1f5f9] p-2.5 rounded-xl border border-[#e2e8f0] text-[12px]">
+        <div className="flex items-center gap-2 text-[#334155]">
+          <span className="material-symbols-outlined text-[#1e3a29] text-[18px]">explore</span>
           <span>
-            Coordinates: <strong>{latitude.toFixed(4)}° N, {longitude.toFixed(4)}° W</strong>
+            Lat: <strong>{latitude.toFixed(4)}° N</strong>, Lon: <strong>{longitude.toFixed(4)}° E</strong>
           </span>
         </div>
-        <div className="flex items-center gap-1.5 text-[12px] font-bold text-[#002114] bg-[#c1ecd4] px-2.5 py-1 rounded-md">
-          <span className="material-symbols-outlined text-[16px]">eco</span>
+        <div className="flex items-center gap-1 font-bold text-[#065f46] bg-[#d1fae5] px-2 py-0.5 rounded">
+          <span className="material-symbols-outlined text-[14px]">eco</span>
           <span>{hardinessZone}</span>
         </div>
       </div>

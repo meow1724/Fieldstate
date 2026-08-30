@@ -33,17 +33,16 @@ async function startServer() {
 
   // API Routes
   app.get('/api/health', (req, res) => {
-    res.json({ status: 'ok', service: 'AgriPulse Decision Engine API' });
+    res.json({ status: 'ok', service: 'Fieldstate Decision Engine API' });
   });
 
   // Live Weather & ET0 API from Open-Meteo
   app.get('/api/agronomy/live-weather', async (req, res) => {
     try {
-      const lat = parseFloat(req.query.lat as string) || 36.7783;
-      const lon = parseFloat(req.query.lon as string) || -119.4179;
+      const lat = parseFloat(req.query.lat as string) || 26.1445;
+      const lon = parseFloat(req.query.lon as string) || 91.7362;
 
       const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,et0_fao_evapotranspiration,wind_speed_10m_max,wind_direction_10m_dominant&hourly=soil_moisture_0_to_10cm,relative_humidity_2m,temperature_2m,wind_speed_10m&timezone=auto`;
-
       const response = await fetch(weatherUrl);
       if (!response.ok) {
         throw new Error(`Open-Meteo responded with status ${response.status}`);
@@ -76,7 +75,7 @@ async function startServer() {
     }
   });
 
-  // Gemini: Explain Decision
+  // Gemini: Explain Decision (Scientific Grounding - No hallucination)
   app.post('/api/gemini/explain-decision', async (req, res) => {
     try {
       const { farm, agronomic, recommendation, ndviHistory } = req.body;
@@ -84,49 +83,47 @@ async function startServer() {
 
       if (!ai) {
         return res.json({
-          explanation: `**${recommendation.title} (${recommendation.action})**\n\n${recommendation.summary}\n\n*Key Agronomic Signals:*\n- Daily Evapotranspiration Demand: **${agronomic.cropEtDemand} mm/day**\n- 24-Hour Rainfall Forecast: **${agronomic.rain24h} mm**\n- Soil Moisture Buffer: **${agronomic.soilMoisturePercent}%** of Field Capacity\n\n*Agronomic Recommendation:* ${recommendation.reason}\n\n*Verification Protocol:* ${recommendation.nextVerificationStep}`,
+          explanation: `**${recommendation.title} (${recommendation.action})**\n\n${recommendation.summary}\n\n*Key Deterministic Signals:*\n- Daily Evapotranspiration Demand ($ET_c$): **${agronomic.cropEtDemand} mm/day** (Calculated)\n- 24-Hour Forecast Rainfall: **${agronomic.rain24h} mm** (Predicted)\n- Modeled Soil Water Buffer: **${agronomic.soilMoisturePercent}%** of Field Capacity (Estimated)\n\n*Agronomic Rationale:* ${recommendation.reason}\n\n*Recommended Field Protocol:* ${recommendation.nextVerificationStep}`,
           isAiGenerated: false,
         });
       }
 
-      const prompt = `You are the lead agronomist AI for AgriPulse, a climate-aware precision agriculture system.
-Explain the following deterministic farm decision clearly to the farm manager.
+      const prompt = `You are the lead agronomy AI for Fieldstate, a decision layer for precision irrigation.
+Explain the following deterministic farm decision clearly and respectfully to the farm manager.
 
 FARM CONTEXT:
 - Farm Name: ${farm?.name || 'My Farm'}
-- Crop: ${farm?.cropDisplayName || farm?.crop} (Day ${agronomic?.cropAgeDays || 45}, Stage: ${agronomic?.growthStageName || 'Mid-Season'})
-- Area: ${farm?.areaHectares || 2} hectares
+- Crop: ${farm?.cropDisplayName || farm?.crop} (Day ${agronomic?.cropAgeDays || 48}, Stage: ${agronomic?.growthStageName || 'Mid-Season'})
+- Area: ${farm?.areaHectares || 2.0} hectares
 - Soil Type: ${farm?.soilType || 'loam'}
-- Irrigation Method: ${farm?.irrigationMethod || 'drip'}
+- Irrigation Method: ${farm?.irrigationMethod || 'flood'}
 
 DETERMINISTIC AGRONOMIC STATE:
-- Reference Evapotranspiration (ET0): ${agronomic?.referenceEt0} mm/day
-- Crop Coefficient (Kc): ${agronomic?.cropCoefficientKc}
+- Reference Evapotranspiration (ET0): ${agronomic?.referenceEt0} mm/day [Calculated via FAO-56 Penman-Monteith]
+- Crop Coefficient (Kc): ${agronomic?.cropCoefficientKc} [Lookup from crop growth stage]
 - Crop Water Demand (ETc = Kc * ET0): ${agronomic?.cropEtDemand} mm/day
-- 24h Forecast Rain: ${agronomic?.rain24h} mm
-- Estimated Soil Moisture: ${agronomic?.soilMoisturePercent}% of field capacity
-- Root Zone Depletion: ${agronomic?.rootZoneDepletion} mm
-- Available Water: ${agronomic?.availableWater} mm
+- 24h Forecast Rain: ${agronomic?.rain24h} mm [Predicted by NWP radar]
+- Estimated Soil Moisture: ${agronomic?.soilMoisturePercent}% of field capacity [Water-balance model]
 - Evaluated Action: ${recommendation?.action} (${recommendation?.badgeText})
-- Recommended Irrigation Volume: ${recommendation?.waterRecommendedLitres?.toLocaleString() || 0} Litres (${recommendation?.waterRecommendedMm || 0} mm depth)
-- Confidence Level: ${recommendation?.confidence}
+- Confidence Level: ${recommendation?.confidence} (${recommendation?.confidenceReason || 'High'})
+- Potential Water Saved Today: ${recommendation?.action === 'WAIT' ? `${agronomic?.potentialWaterSavedLitres?.toLocaleString()} Litres` : 'N/A'}
 
-LATEST NDVI OBSERVED:
-${ndviHistory?.length ? JSON.stringify(ndviHistory.slice(0, 3)) : 'No recent NDVI anomalies'}
+LATEST SENTINEL-2 NDVI:
+${ndviHistory?.length ? JSON.stringify(ndviHistory.slice(0, 3)) : 'Normal canopy growth curve'}
 
-RULES:
+CORE SCIENTIFIC RULES:
 1. Speak in a grounded, professional, encouraging agronomic tone.
-2. DO NOT invent or fabricate any scientific measurements or weather values outside the data provided.
-3. Clearly explain WHY this decision (WAIT, IRRIGATE, or INSPECT) is recommended today and how it saves water or protects yield.
-4. Mention the quantitative litres or mm numbers accurately based on the prompt data.
-5. Provide 2-3 practical next verification steps for the farm scout/manager.
-6. Keep the response concise, nicely formatted with bold key metrics and bullet points.`;
+2. DO NOT invent or fabricate any sensor readings, soil chemistry, or weather numbers outside the data provided.
+3. Clearly explain WHY this decision (WAIT, IRRIGATE, or INSPECT) is recommended today and how it saves water, pumping electricity/diesel costs, or protects yield.
+4. Distinguish between what is measured (satellite reflectance), calculated (FAO-56 ETc), predicted (rain forecast), and estimated (soil water).
+5. Provide 2-3 practical next verification steps for the field manager.
+6. Keep the response concise, formatted with bold key metrics and clean bullet points.`;
 
       const response = await ai.models.generateContent({
         model: 'gemini-3.7-flash',
         contents: prompt,
         config: {
-          systemInstruction: 'You are an expert agronomist providing structured, high-precision decision explanations to agricultural managers. Never hallucinate sensor readings or soil fertility numbers from NDVI.',
+          systemInstruction: 'You are Fieldstate AI, an agronomic decision explainer. You explain deterministic water-balance and satellite calculations. You NEVER hallucinate measurements.',
           temperature: 0.3,
         },
       });
@@ -136,7 +133,7 @@ RULES:
     } catch (err: any) {
       console.error('Gemini explanation error:', err?.message);
       res.json({
-        explanation: req.body?.recommendation?.detailedAnalysis || 'Agronomic calculation complete.',
+        explanation: req.body?.recommendation?.detailedAnalysis || 'Agronomic calculation verified.',
         isAiGenerated: false,
         fallbackError: err?.message,
       });
@@ -151,35 +148,33 @@ RULES:
 
       if (!ai) {
         return res.json({
-          answer: `Based on your current field state (${farm?.cropDisplayName || 'Crop'}, Day ${agronomic?.cropAgeDays || 45}), daily demand is ${agronomic?.cropEtDemand || 5.5} mm/day. Current action is **${recommendation?.action || 'WAIT'}** due to ${recommendation?.reason || 'modeled moisture levels'}. For specific adjustments, monitor the 24h rain forecast.`,
+          answer: `For **${farm?.cropDisplayName || 'Crop'}** at Day ${agronomic?.cropAgeDays || 48}, today's demand is ${agronomic?.cropEtDemand || 5.5} mm/day. Current action is **${recommendation?.action || 'WAIT'}** (${recommendation?.reason || 'modeled moisture levels'}). Recheck field after forecasted precipitation.`,
           isAiGenerated: false,
         });
       }
 
-      const prompt = `You are AgriPulse Agronomist, a trusted digital advisor answering a farm manager's query.
-
+      const prompt = `You are Fieldstate Agronomist, a digital advisor answering a farm manager's query.
 CURRENT FIELD STATE:
 - Crop: ${farm?.cropDisplayName} (${farm?.areaHectares} ha, Soil: ${farm?.soilType}, Irrigation: ${farm?.irrigationMethod})
 - Age & Stage: Day ${agronomic?.cropAgeDays} (${agronomic?.growthStageName})
 - ETc Demand: ${agronomic?.cropEtDemand} mm/day (ET0: ${agronomic?.referenceEt0} mm/d, Kc: ${agronomic?.cropCoefficientKc})
 - 24h Rain Forecast: ${agronomic?.rain24h} mm
 - Soil Moisture: ${agronomic?.soilMoisturePercent}% capacity
-- Current Recommendation: ${recommendation?.action} - ${recommendation?.reason}
+- Current Recommendation: ${recommendation?.action} — ${recommendation?.reason}
 
-FARMER'S QUESTION:
-"${question}"
+FARMER'S QUESTION: "${question}"
 
 INSTRUCTIONS:
 1. Provide a direct, concise, and helpful answer grounded strictly in FAO-56 crop-water principles and the field data provided.
-2. If the user asks "What if" questions (e.g., "What if I irrigate anyway?"), explain the trade-offs (e.g., risk of water waste, leaching, waterlogged roots vs stress mitigation).
+2. If asked "What if I irrigate anyway?", explain the trade-offs (e.g., pumping fuel costs, fertilizer leaching, waterlogged roots vs stress mitigation).
 3. If asked about NDVI, emphasize that NDVI measures canopy vigor/greenness and recommends ground scouting rather than assuming disease or fertility.
-4. Keep the answer under 180 words, crisp and professional.`;
+4. Keep the answer under 160 words, crisp and professional.`;
 
       const response = await ai.models.generateContent({
         model: 'gemini-3.7-flash',
         contents: prompt,
         config: {
-          temperature: 0.4,
+          temperature: 0.3,
         },
       });
 
@@ -205,7 +200,7 @@ INSTRUCTIONS:
 
       if (!ai) {
         return res.json({
-          analysis: `Survey logged. Visual condition: ${moistureCondition}. ${pestSpotted ? 'Pest presence flagged for targeted scouting.' : 'No pest damage reported.'}`,
+          analysis: `Ground survey logged. Soil moisture condition recorded as: **${moistureCondition}**. ${pestSpotted ? 'Pest presence flagged for targeted scouting.' : 'No pest damage reported.'}`,
           recommendedActions: ['Continue standard daily ETc monitoring', 'Re-inspect in 48 hours'],
           isAiGenerated: false,
         });
@@ -215,7 +210,6 @@ INSTRUCTIONS:
 - Field Notes: "${surveyNotes}"
 - Pest Spotted: ${pestSpotted ? 'YES' : 'NO'}
 - Soil Moisture Condition Noted by Scout: ${moistureCondition}
-
 Provide a short 2-bullet agronomist assessment and 2 prioritized next actions.`;
 
       const response = await ai.models.generateContent({
@@ -252,7 +246,7 @@ Provide a short 2-bullet agronomist assessment and 2 prioritized next actions.`;
   }
 
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`AgriPulse Server running on http://localhost:${PORT}`);
+    console.log(`Fieldstate Server running on http://localhost:${PORT}`);
   });
 }
 

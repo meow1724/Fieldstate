@@ -1,23 +1,27 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { PRESET_FARMS, FarmDataSet } from './data/mockFarms';
-import { FarmProfile, FieldSurvey, Recommendation } from './types';
+import { FarmProfile, FieldSurvey, Recommendation, DataProvenanceTag } from './types';
 import { evaluateFarmDecision } from './lib/agronomy';
 import { fetchLiveWeatherData, computeRealFieldAgronomy, LiveWeatherData } from './lib/weatherApi';
+
 import { Sidebar } from './components/Sidebar';
 import { TopBar } from './components/TopBar';
 import { TodayDashboard } from './components/screens/TodayDashboard';
+import { FarmEconomicsScreen } from './components/screens/FarmEconomicsScreen';
 import { CropHealthDetail } from './components/screens/CropHealthDetail';
 import { WaterManagementDetail } from './components/screens/WaterManagementDetail';
-import { FarmSetup } from './components/screens/FarmSetup';
 import { WeatherForecastDetail } from './components/screens/WeatherForecastDetail';
+import { PitchDeckAndScienceLedger } from './components/screens/PitchDeckAndScienceLedger';
+import { FarmSetup } from './components/screens/FarmSetup';
+
 import { FieldSurveyModal } from './components/modals/FieldSurveyModal';
 import { AiAgronomistModal } from './components/modals/AiAgronomistModal';
 import { ScheduleInspectionModal } from './components/modals/ScheduleInspectionModal';
+import { DataProvenanceModal } from './components/modals/DataProvenanceModal';
 
-const STORAGE_KEY = 'agripulse_farms_v2';
+const STORAGE_KEY = 'fieldstate_farms_v3';
 
 export const App: React.FC = () => {
-  // Load initial farm data from localStorage or presets
   const [farmsData, setFarmsData] = useState<Record<string, FarmDataSet>>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
@@ -30,28 +34,33 @@ export const App: React.FC = () => {
     return PRESET_FARMS;
   });
 
-  const [selectedFarmId, setSelectedFarmId] = useState<string>('rice-field-a');
+  const [selectedFarmId, setSelectedFarmId] = useState<string>('north-plot-rice');
   const [activeTab, setActiveTab] = useState<string>('today');
 
-  // Real-time API Sync State
+  // Real-time API state
   const [isSyncingApi, setIsSyncingApi] = useState<boolean>(false);
   const [lastSyncTime, setLastSyncTime] = useState<Date>(new Date());
   const [syncError, setSyncError] = useState<string | null>(null);
+
+  // Cloud gap simulation state (demonstrating Slide 11)
+  const [isCloudGapSimulated, setIsCloudGapSimulated] = useState<boolean>(false);
 
   // Modals
   const [isSurveyModalOpen, setIsSurveyModalOpen] = useState(false);
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
   const [isInspectionModalOpen, setIsInspectionModalOpen] = useState(false);
+  const [isProvenanceModalOpen, setIsProvenanceModalOpen] = useState(false);
+  const [activeProvenanceTag, setActiveProvenanceTag] = useState<DataProvenanceTag | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
 
-  const currentDataSet = farmsData[selectedFarmId] || farmsData['rice-field-a'] || Object.values(farmsData)[0];
+  const currentDataSet = farmsData[selectedFarmId] || farmsData['north-plot-rice'] || Object.values(farmsData)[0];
   const { farm, agronomic, ndviReadings, weather3Day, weather7Day, satelliteMeta } = currentDataSet;
 
-  // Compute live recommendation deterministically
+  // Compute live deterministic recommendation
   const recommendation: Recommendation = evaluateFarmDecision(farm, agronomic, ndviReadings);
 
-  // Save to localStorage when state changes
+  // Save to localStorage
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(farmsData));
@@ -60,11 +69,10 @@ export const App: React.FC = () => {
     }
   }, [farmsData]);
 
-  // Synchronize with real Open-Meteo API for selected farm
-  const syncWithLiveApi = useCallback(async (farmToSync: FarmProfile) => {
+  // Synchronize with real Open-Meteo API
+  const syncWithLiveApi = useCallback(async (farmToSync: FarmProfile, simulateCloud = isCloudGapSimulated) => {
     setIsSyncingApi(true);
     setSyncError(null);
-
     try {
       const liveWeather: LiveWeatherData = await fetchLiveWeatherData(
         farmToSync.latitude,
@@ -74,7 +82,8 @@ export const App: React.FC = () => {
       const { agronomic: liveAgronomic, ndviReadings: liveNdvi, ndviHistoryChart } = computeRealFieldAgronomy(
         farmToSync,
         liveWeather,
-        currentDataSet.agronomic.irrigationAppliedToday || 0
+        currentDataSet.agronomic.irrigationAppliedToday || 0,
+        simulateCloud
       );
 
       const updatedDataSet: FarmDataSet = {
@@ -86,8 +95,9 @@ export const App: React.FC = () => {
         weather7Day: liveWeather.daily,
         satelliteMeta: {
           ...currentDataSet.satelliteMeta,
-          acquisitionDate: 'Live Sentinel-2 Pass',
-          cloudCoverPercent: Math.round(liveWeather.daily[0]?.pop ? liveWeather.daily[0].pop / 3 : 5),
+          acquisitionDate: simulateCloud ? 'Cloud Covered (Lag Fallback)' : 'Live Sentinel-2 Pass',
+          cloudCoverPercent: simulateCloud ? 85 : Math.round(liveWeather.daily[0]?.pop ? liveWeather.daily[0].pop / 3 : 6),
+          isCloudCovered: simulateCloud,
         },
         surveys: currentDataSet.surveys || [],
       };
@@ -96,20 +106,19 @@ export const App: React.FC = () => {
         ...prev,
         [farmToSync.id]: updatedDataSet,
       }));
-
       setLastSyncTime(new Date());
     } catch (err: any) {
-      console.error('Live API synchronization error:', err);
+      console.error('Live API sync error:', err);
       setSyncError('Live weather API temporarily unreachable. Displaying cached telemetry.');
     } finally {
       setIsSyncingApi(false);
     }
-  }, [currentDataSet]);
+  }, [currentDataSet, isCloudGapSimulated]);
 
-  // Sync on initial load and when switching farm
+  // Sync when farm or coordinates change
   useEffect(() => {
     if (farm) {
-      syncWithLiveApi(farm);
+      syncWithLiveApi(farm, isCloudGapSimulated);
     }
   }, [farm.id, farm.latitude, farm.longitude]);
 
@@ -125,11 +134,31 @@ export const App: React.FC = () => {
     setSelectedFarmId(farmId);
     const targetFarm = farmsData[farmId]?.farm;
     if (targetFarm) {
-      syncWithLiveApi(targetFarm);
+      syncWithLiveApi(targetFarm, isCloudGapSimulated);
     }
   };
 
-  // Handle Farm Profile Updates / Setup Creation
+  // Switch 1-Click Judge Scenario
+  const handleSelectJudgeScenario = (scenarioKey: string) => {
+    if (PRESET_FARMS[scenarioKey]) {
+      setFarmsData((prev) => ({
+        ...prev,
+        [scenarioKey]: PRESET_FARMS[scenarioKey],
+      }));
+      setSelectedFarmId(scenarioKey);
+      syncWithLiveApi(PRESET_FARMS[scenarioKey].farm, false);
+    }
+  };
+
+  // Handle Cloud Gap Toggle
+  const handleToggleCloudGap = (enabled: boolean) => {
+    setIsCloudGapSimulated(enabled);
+    if (farm) {
+      syncWithLiveApi(farm, enabled);
+    }
+  };
+
+  // Handle Farm Profile Save
   const handleSaveFarm = async (updatedFarm: FarmProfile) => {
     setIsSyncingApi(true);
     try {
@@ -137,7 +166,8 @@ export const App: React.FC = () => {
       const { agronomic: liveAgronomic, ndviReadings: liveNdvi, ndviHistoryChart } = computeRealFieldAgronomy(
         updatedFarm,
         liveWeather,
-        0
+        0,
+        isCloudGapSimulated
       );
 
       const updatedDataSet: FarmDataSet = {
@@ -152,8 +182,9 @@ export const App: React.FC = () => {
           acquisitionDate: 'Today (Live Pass)',
           resolution: '10m Multi-spectral',
           cloudCoverPercent: Math.round(liveWeather.daily[0]?.pop ? liveWeather.daily[0].pop / 3 : 5),
-          imageUrl: currentDataSet.satelliteMeta?.imageUrl || 'https://lh3.googleusercontent.com/aida-public/AB6AXuBTEjB1cX0AAbjhXnv6GQHHxplFGayVBeAYBzaoyEZ1pQjnafz0cJkxf6MldhMAo2xVMfFvxGZXHGWHGjOlesQe-uQ_rdRiWPxRtfoRAURt7HPAQFS8OhzfM4hsnunTW1ZGCl3ZOQX3zJXLe6rJIKwknTfUM-FXpxKmKB-QPOpgVOquhu7YBQplCht2NpOuZV8lDKeIt8ChERbVl5irbxyBu7XrDtf0-ISWajFUb3EMbGmvxNXrBuzX',
-          altText: `High-resolution live satellite imagery for ${updatedFarm.name}`,
+          imageUrl: currentDataSet.satelliteMeta?.imageUrl || '',
+          altText: `Live Sentinel-2 imagery for ${updatedFarm.name}`,
+          isCloudCovered: false,
         },
         surveys: currentDataSet.surveys || [],
       };
@@ -162,13 +193,11 @@ export const App: React.FC = () => {
         ...prev,
         [updatedFarm.id]: updatedDataSet,
       }));
-
       setSelectedFarmId(updatedFarm.id);
       setLastSyncTime(new Date());
       setActiveTab('today');
     } catch (err) {
-      console.error('Error saving and syncing farm:', err);
-      // Fallback
+      console.error('Error saving farm:', err);
       setFarmsData((prev) => ({
         ...prev,
         [updatedFarm.id]: {
@@ -182,7 +211,7 @@ export const App: React.FC = () => {
     }
   };
 
-  // Handle Irrigation Application from Simulator
+  // Handle Irrigation Application from Sandbox
   const handleApplyIrrigation = (appliedMm: number) => {
     const newAppliedToday = agronomic.irrigationAppliedToday + appliedMm;
     const newNetChange = Number((agronomic.rain24h + newAppliedToday - agronomic.cropEtDemand).toFixed(2));
@@ -205,7 +234,7 @@ export const App: React.FC = () => {
     }));
   };
 
-  // Save new field survey (with optional location/crop update)
+  // Save new field survey
   const handleSaveSurvey = async (newSurvey: FieldSurvey, updatedFarmProfile?: FarmProfile) => {
     setIsSurveyModalOpen(false);
     if (updatedFarmProfile) {
@@ -229,8 +258,13 @@ export const App: React.FC = () => {
     }
   };
 
+  const handleOpenProvenance = (tag: DataProvenanceTag) => {
+    setActiveProvenanceTag(tag);
+    setIsProvenanceModalOpen(true);
+  };
+
   return (
-    <div className="min-h-screen bg-[#f9f9f8] text-[#191c1c] flex flex-col antialiased">
+    <div className="min-h-screen bg-[#f8faf8] text-[#152219] flex flex-col antialiased">
       {/* Desktop Persistent Sidebar */}
       <Sidebar
         activeTab={activeTab}
@@ -239,40 +273,47 @@ export const App: React.FC = () => {
         currentFarm={farm}
         farms={farmsData}
         onSelectFarm={handleSelectFarm}
+        onSelectJudgeScenario={handleSelectJudgeScenario}
       />
 
-      {/* Top Header with Live Real-Time API Status Indicator */}
+      {/* Top Header */}
       <TopBar
         currentFarm={farm}
         activeTab={activeTab}
         onOpenNotifications={() => setIsNotificationsOpen(!isNotificationsOpen)}
         onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
         onOpenAiChat={() => setIsAiModalOpen(true)}
+        onOpenProvenanceGuide={() => {
+          setActiveProvenanceTag(null);
+          setIsProvenanceModalOpen(true);
+        }}
+        isSyncingApi={isSyncingApi}
+        onRefreshApi={() => syncWithLiveApi(farm, isCloudGapSimulated)}
       />
 
       {/* Mobile Drawer Navigation */}
       {isMobileMenuOpen && (
         <div className="fixed inset-0 z-50 lg:hidden flex">
           <div
-            className="fixed inset-0 bg-black/60 backdrop-blur-xs"
+            className="fixed inset-0 bg-black/70 backdrop-blur-xs"
             onClick={() => setIsMobileMenuOpen(false)}
           ></div>
-          <div className="relative w-72 max-w-[80vw] bg-[#f3f4f3] h-full p-6 flex flex-col z-10 border-r border-[#c1c8c2] overflow-y-auto">
-            <div className="flex items-center justify-between mb-6">
+          <div className="relative w-72 max-w-[80vw] bg-[#101b13] text-white h-full p-5 flex flex-col z-10 border-r border-[#2d4436] overflow-y-auto">
+            <div className="flex items-center justify-between mb-5">
               <div className="flex items-center gap-2">
-                <span className="material-symbols-outlined icon-fill text-[#012d1d] text-2xl">eco</span>
-                <span className="text-[20px] font-bold text-[#012d1d]">AgriPulse</span>
+                <span className="material-symbols-outlined icon-fill text-[#e6a833] text-2xl">eco</span>
+                <span className="text-[20px] font-bold text-white">Fieldstate</span>
               </div>
               <button
                 onClick={() => setIsMobileMenuOpen(false)}
-                className="p-1 text-[#414844] hover:text-[#191c1c] rounded-full"
+                className="p-1 text-[#86a894] hover:text-white rounded-full"
               >
                 <span className="material-symbols-outlined text-[24px]">close</span>
               </button>
             </div>
 
             <div className="mb-4">
-              <label className="text-[11px] font-semibold text-[#717973] uppercase tracking-wider block mb-1.5">
+              <label className="text-[11px] font-bold text-[#86a894] uppercase tracking-wider block mb-1.5">
                 Active Field
               </label>
               <select
@@ -281,7 +322,7 @@ export const App: React.FC = () => {
                   handleSelectFarm(e.target.value);
                   setIsMobileMenuOpen(false);
                 }}
-                className="w-full text-[13px] font-medium bg-white text-[#191c1c] border border-[#c1c8c2] rounded-lg py-2 px-3"
+                className="w-full text-[13px] font-medium bg-[#192a1e] text-white border border-[#2e4d3a] rounded-lg py-2 px-3"
               >
                 {Object.values(farmsData).map((item: FarmDataSet) => (
                   <option key={item.farm.id} value={item.farm.id}>
@@ -296,28 +337,30 @@ export const App: React.FC = () => {
                 setIsMobileMenuOpen(false);
                 setIsSurveyModalOpen(true);
               }}
-              className="w-full bg-[#012d1d] text-white rounded-lg py-2.5 px-4 flex items-center justify-center gap-2 text-[14px] font-semibold mb-4"
+              className="w-full bg-[#e6a833] text-[#101b13] rounded-xl py-2.5 px-4 flex items-center justify-center gap-2 text-[13px] font-bold mb-4"
             >
-              <span className="material-symbols-outlined text-[18px]">add</span>
+              <span className="material-symbols-outlined text-[18px]">add_location_alt</span>
               <span>New Field Survey</span>
             </button>
 
             <div className="flex flex-col gap-1 flex-1">
               {[
-                { id: 'today', label: "Today's Actions", icon: 'assignment_turned_in' },
-                { id: 'crop-health', label: 'Crop Health', icon: 'potted_plant' },
+                { id: 'today', label: "Today's Decision", icon: 'task_alt' },
+                { id: 'economics', label: 'ROI & Carbon Savings', icon: 'savings' },
+                { id: 'crop-health', label: 'Crop Health (NDVI)', icon: 'satellite_alt' },
                 { id: 'water', label: 'Water Management', icon: 'water_drop' },
                 { id: 'weather', label: 'Weather Forecast', icon: 'cloud_sync' },
-                { id: 'setup', label: 'Farm Setup', icon: 'settings' },
+                { id: 'pitch', label: 'Pitch & Science Ledger', icon: 'auto_stories' },
+                { id: 'setup', label: 'Farm Configuration', icon: 'settings' },
               ].map((item) => (
                 <button
                   key={item.id}
                   onClick={() => handleTabChange(item.id)}
-                  className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-left text-[14px] font-medium transition-colors ${
-                    activeTab === item.id ? 'bg-[#1b4332] text-white font-bold' : 'text-[#414844] hover:bg-[#e7e8e7]'
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-left text-[13px] font-bold transition-colors ${
+                    activeTab === item.id ? 'bg-[#234e35] text-white' : 'text-[#a5b8ac] hover:bg-[#192b1f]'
                   }`}
                 >
-                  <span className="material-symbols-outlined text-[22px]">{item.icon}</span>
+                  <span className="material-symbols-outlined text-[20px]">{item.icon}</span>
                   <span>{item.label}</span>
                 </button>
               ))}
@@ -328,36 +371,36 @@ export const App: React.FC = () => {
 
       {/* Notifications Drawer */}
       {isNotificationsOpen && (
-        <div className="fixed top-16 right-4 z-40 w-80 sm:w-96 bg-white rounded-2xl p-5 shadow-xl border border-[#c1c8c2] animate-in fade-in slide-in-from-top-2 duration-200">
-          <div className="flex items-center justify-between pb-3 mb-3 border-b border-[#c1c8c2]/30">
-            <h4 className="text-[15px] font-bold text-[#191c1c] flex items-center gap-1.5">
-              <span className="material-symbols-outlined text-[#012d1d] text-[20px]">notifications</span>
+        <div className="fixed top-16 right-4 z-40 w-80 sm:w-96 bg-white rounded-3xl p-5 shadow-2xl border border-[#cbd5e1] animate-in fade-in duration-150">
+          <div className="flex items-center justify-between pb-3 mb-3 border-b border-[#e2e8f0]">
+            <h4 className="text-[14px] font-extrabold text-[#0f172a] flex items-center gap-1.5">
+              <span className="material-symbols-outlined text-[#1e3a29] text-[18px]">notifications</span>
               <span>Real-Time Agronomic Alerts</span>
             </h4>
             <button
               onClick={() => setIsNotificationsOpen(false)}
-              className="text-[#717973] hover:text-[#191c1c] text-[12px] font-semibold"
+              className="text-[#64748b] hover:text-[#0f172a] text-[12px] font-bold"
             >
               Close
             </button>
           </div>
-          <div className="flex flex-col gap-3 text-[13px]">
-            <div className="p-3 bg-[#b9ecee]/30 rounded-xl border border-[#7eafb1]/40">
-              <p className="font-bold text-[#002c2d] flex items-center gap-1">
+          <div className="flex flex-col gap-2.5 text-[12px]">
+            <div className="p-3 bg-blue-50 rounded-2xl border border-blue-200">
+              <p className="font-bold text-blue-950 flex items-center gap-1">
                 <span className="material-symbols-outlined text-[16px]">cloud_sync</span>
-                Live API Telemetry Active
+                Live API Telemetry Synchronized
               </p>
-              <p className="text-[12px] text-[#414844] mt-0.5">
-                Connected to Open-Meteo FAO-56 & Global Atmospheric model for Lat {farm.latitude.toFixed(4)}, Lon {farm.longitude.toFixed(4)}.
+              <p className="text-blue-800 mt-0.5">
+                Connected to Open-Meteo high-resolution radar for Lat {farm.latitude.toFixed(3)}°, Lon {farm.longitude.toFixed(3)}°.
               </p>
             </div>
-            <div className="p-3 bg-[#c1ecd4]/40 rounded-xl border border-[#a5d0b9]">
-              <p className="font-bold text-[#002114] flex items-center gap-1">
+            <div className="p-3 bg-emerald-50 rounded-2xl border border-emerald-200">
+              <p className="font-bold text-emerald-950 flex items-center gap-1">
                 <span className="material-symbols-outlined text-[16px]">water_drop</span>
-                Live 24h Rain: {agronomic.rain24h.toFixed(1)} mm
+                Today's Decision: {recommendation.action}
               </p>
-              <p className="text-[12px] text-[#414844] mt-0.5">
-                Current Crop ET Demand is {agronomic.cropEtDemand.toFixed(1)} mm/day ($K_c = {agronomic.cropCoefficientKc.toFixed(2)}$).
+              <p className="text-emerald-800 mt-0.5">
+                Crop water demand: {agronomic.cropEtDemand.toFixed(1)} mm/d ($K_c = {agronomic.cropCoefficientKc.toFixed(2)}$).
               </p>
             </div>
           </div>
@@ -366,49 +409,50 @@ export const App: React.FC = () => {
 
       {/* Main Content Area */}
       <main className="flex-1 px-4 md:px-8 py-6 md:py-8 lg:ml-64 mt-16 lg:mt-0 transition-all flex flex-col justify-start">
-        {/* Real Live API Sync Header Strip */}
-        <div className="mb-6 p-3 bg-white rounded-xl border border-[#c1c8c2]/50 shadow-xs flex flex-wrap items-center justify-between gap-3 text-[13px]">
+        {/* Live Synchronized API Telemetry Strip */}
+        <div className="mb-6 p-3 bg-white rounded-2xl border border-[#cbd5e1] shadow-xs flex flex-wrap items-center justify-between gap-3 text-[12px]">
           <div className="flex items-center gap-2.5">
-            <span className={`w-2.5 h-2.5 rounded-full ${isSyncingApi ? 'bg-amber-500 animate-ping' : 'bg-[#1b4332]'}`} />
+            <span className={`w-2.5 h-2.5 rounded-full ${isSyncingApi ? 'bg-amber-500 animate-ping' : 'bg-[#1e3a29]'}`} />
             <div className="flex items-center gap-1.5">
-              <span className="font-bold text-[#191c1c]">Live API Status:</span>
-              <span className="text-[#414844]">
+              <span className="font-bold text-[#0f172a]">Live API Status:</span>
+              <span className="text-[#475569]">
                 {isSyncingApi
-                  ? 'Querying real-time global weather & evapotranspiration...'
-                  : `Connected to Open-Meteo API • Synced at ${lastSyncTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`}
+                  ? 'Connecting to Open-Meteo global radar and computing FAO-56 Penman-Monteith...'
+                  : `Connected · Synced at ${lastSyncTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`}
               </span>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
             <button
-              onClick={() => syncWithLiveApi(farm)}
+              onClick={() => syncWithLiveApi(farm, isCloudGapSimulated)}
               disabled={isSyncingApi}
-              className="bg-[#f3f4f3] hover:bg-[#e7e8e7] text-[#012d1d] px-3 py-1.5 rounded-lg font-semibold flex items-center gap-1.5 cursor-pointer text-[12px] border border-[#c1c8c2]/60 transition-colors"
+              className="bg-[#f8fafc] hover:bg-[#f1f5f9] text-[#1e3a29] px-3 py-1.5 rounded-xl font-bold flex items-center gap-1.5 cursor-pointer text-[12px] border border-[#cbd5e1] transition-colors"
             >
               <span className={`material-symbols-outlined text-[16px] ${isSyncingApi ? 'animate-spin' : ''}`}>
                 refresh
               </span>
               <span>{isSyncingApi ? 'Syncing...' : 'Refresh Live API'}</span>
             </button>
+
             <button
-              onClick={() => setActiveTab('setup')}
-              className="bg-[#012d1d] hover:bg-[#1b4332] text-white px-3 py-1.5 rounded-lg font-semibold flex items-center gap-1.5 cursor-pointer text-[12px] transition-colors"
+              onClick={() => setActiveTab('pitch')}
+              className="bg-[#101b13] hover:bg-[#1e3a29] text-[#e6a833] px-3 py-1.5 rounded-xl font-bold flex items-center gap-1.5 cursor-pointer text-[12px] transition-colors"
             >
-              <span className="material-symbols-outlined text-[16px]">edit_location</span>
-              <span>Change Location / Coordinates</span>
+              <span className="material-symbols-outlined text-[16px]">gavel</span>
+              <span>Judge Presentation</span>
             </button>
           </div>
         </div>
 
         {syncError && (
-          <div className="mb-4 p-3 bg-[#ffdad3]/40 text-[#741f11] text-[13px] rounded-xl border border-[#fe8770]/40 flex items-center gap-2">
-            <span className="material-symbols-outlined text-[18px]">warning</span>
+          <div className="mb-4 p-3 bg-amber-50 text-amber-900 text-[12px] rounded-xl border border-amber-300 flex items-center gap-2">
+            <span className="material-symbols-outlined text-[16px]">warning</span>
             <span>{syncError}</span>
           </div>
         )}
 
-        {/* Screen Render */}
+        {/* Screen Routing */}
         {activeTab === 'today' && (
           <TodayDashboard
             farm={farm}
@@ -419,6 +463,16 @@ export const App: React.FC = () => {
             onNavigateToTab={handleTabChange}
             onOpenAiExplainer={() => setIsAiModalOpen(true)}
             onNewSurvey={() => setIsSurveyModalOpen(true)}
+            onOpenProvenanceModal={handleOpenProvenance}
+          />
+        )}
+
+        {activeTab === 'economics' && (
+          <FarmEconomicsScreen
+            farm={farm}
+            agronomic={agronomic}
+            recommendation={recommendation}
+            onNavigateToTab={handleTabChange}
           />
         )}
 
@@ -430,6 +484,8 @@ export const App: React.FC = () => {
             satelliteMeta={satelliteMeta}
             onScheduleInspection={() => setIsInspectionModalOpen(true)}
             onNewSurvey={() => setIsSurveyModalOpen(true)}
+            onToggleCloudGap={handleToggleCloudGap}
+            isCloudGapSimulated={isCloudGapSimulated}
           />
         )}
 
@@ -447,6 +503,13 @@ export const App: React.FC = () => {
             farm={farm}
             agronomic={agronomic}
             weather7Day={weather7Day}
+            onNavigateToTab={handleTabChange}
+          />
+        )}
+
+        {activeTab === 'pitch' && (
+          <PitchDeckAndScienceLedger
+            onSelectJudgeScenario={handleSelectJudgeScenario}
             onNavigateToTab={handleTabChange}
           />
         )}
@@ -481,6 +544,12 @@ export const App: React.FC = () => {
         isOpen={isInspectionModalOpen}
         onClose={() => setIsInspectionModalOpen(false)}
         farm={farm}
+      />
+
+      <DataProvenanceModal
+        isOpen={isProvenanceModalOpen}
+        onClose={() => setIsProvenanceModalOpen(false)}
+        activeTag={activeProvenanceTag}
       />
     </div>
   );
